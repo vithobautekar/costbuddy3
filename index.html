@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NATRAX Track Logger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── CSS Variables ── */
+:root {
+  --radius: 0.625rem;
+  --background: #1a1f2e;
+  --foreground: #f0f2f7;
+  --card: #1e2335;
+  --card-foreground: #f0f2f7;
+  --popover: #1e2335;
+  --muted: #252b3d;
+  --muted-foreground: #8892a4;
+  --accent: #2a3147;
+  --accent-foreground: #f0f2f7;
+  --primary: #e8a825;
+  --primary-foreground: #1a1f2e;
+  --secondary: #252b3d;
+  --destructive: #e05252;
+  --destructive-foreground: #f8f9fa;
+  --success: #4ade80;
+  --success-foreground: #0f1a0f;
+  --warning: #e8a825;
+  --border: #2e3650;
+  --input: #252b3d;
+  --ring: #e8a825;
+  --track-idle: #252b3d;
+  --chart1: #e8a825;
+  --chart2: #4ade80;
+  --chart3: #60a5fa;
+  --chart4: #c084fc;
+  --chart5: #f87171;
+  --sidebar-bg: #161b29;
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+html, body { height: 100%; background: var(--background); color: var(--foreground); font-family: 'Inter', ui-sans-serif, sans-serif; font-size: 14px; line-height: 1.5; }
+button { cursor: pointer; background: none; font: inherit; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; background: var(--input); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.45rem 0.75rem; width: 100%; outline: none; transition: border-color 0.15s; }
+input:focus, textarea:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent); }
+input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+label { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-foreground); font-weight: 600; padding: 0.5rem 0.75rem; }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); font-size: 0.875rem; }
+tr:last-child td { border-bottom: none; }
+a { color: inherit; text-decoration: none; }
+textarea { resize: vertical; min-height: 2.5rem; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* ── Layout ── */
+.page { display: none; }
+.page.active { display: block; }
+.max-w { max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
+.grid-bg {
+  background-image: linear-gradient(rgba(46,54,80,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(46,54,80,0.35) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 1rem; border-radius: var(--radius); font-weight: 500; font-size: 0.875rem; transition: all 0.15s; border: 1px solid transparent; white-space: nowrap; }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-outline { border-color: var(--border); background: transparent; }
+.btn-outline:hover { background: var(--accent); }
+.btn-ghost { background: transparent; }
+.btn-ghost:hover { background: var(--accent); }
+.btn-destructive { background: var(--destructive); color: var(--destructive-foreground); }
+.btn-destructive:hover { filter: brightness(1.1); }
+.btn-sm { padding: 0.3rem 0.65rem; font-size: 0.78rem; }
+.btn-icon { padding: 0.35rem; border-radius: var(--radius); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+/* ── Cards ── */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); }
+.card-p { padding: 1.25rem; }
+
+/* ── Topbar ── */
+.topbar { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--card) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.topbar-inner { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; }
+.topbar-brand { display: flex; align-items: center; gap: 0.75rem; }
+.topbar-icon { width: 2.25rem; height: 2.25rem; background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.topbar-title { font-size: 0.625rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted-foreground); }
+.topbar-subtitle { font-size: 0.9rem; font-weight: 600; }
+.topbar-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+/* ── Sync Badge ── */
+.sync-badge { display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 999px; border: 1px solid; padding: 0.2rem 0.65rem; font-size: 0.75rem; font-weight: 500; }
+.sync-synced { border-color: color-mix(in srgb, var(--success) 40%, transparent); background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); }
+.sync-pending { border-color: color-mix(in srgb, var(--warning) 50%, transparent); background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+.sync-offline { border-color: color-mix(in srgb, var(--destructive) 40%, transparent); background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--destructive); }
+
+/* ── Nav Tabs ── */
+.nav-tabs { display: flex; gap: 0.25rem; overflow-x: auto; padding: 0 0.5rem; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--card) 40%, transparent); }
+.nav-tab { position: relative; padding: 0.75rem 1rem; font-size: 0.875rem; font-weight: 500; color: var(--muted-foreground); transition: color 0.15s; white-space: nowrap; }
+.nav-tab:hover { color: var(--foreground); }
+.nav-tab.active { color: var(--foreground); }
+.nav-tab.active::after { content: ''; position: absolute; inset-inline: 0.75rem; bottom: -1px; height: 2px; background: var(--primary); border-radius: 999px; }
+
+/* ── Login Page ── */
+#page-login { min-height: 100vh; display: none; }
+#page-login.active { display: grid; grid-template-columns: 1fr; }
+@media (min-width: 1024px) { #page-login.active { grid-template-columns: 1.1fr 1fr; } }
+.login-hero { display: none; position: relative; overflow: hidden; background: linear-gradient(135deg, #0d1120, #161b2e, #0d1120); padding: 2.5rem; flex-direction: column; justify-content: space-between; }
+@media (min-width: 1024px) { .login-hero { display: flex; } }
+.login-form-wrap { display: flex; align-items: center; justify-content: center; padding: 3rem 1.5rem; min-height: 100vh; }
+@media (min-width: 1024px) { .login-form-wrap { min-height: auto; } }
+.login-form { width: 100%; max-width: 22rem; }
+
+/* ── Mode Toggle ── */
+.mode-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; background: color-mix(in srgb, var(--card) 40%, transparent); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.25rem; margin-bottom: 1.25rem; }
+.mode-btn { display: flex; align-items: center; justify-content: center; gap: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.75rem; font-weight: 500; border-radius: calc(var(--radius) - 2px); transition: all 0.15s; color: var(--muted-foreground); }
+.mode-btn.active { background: var(--primary); color: var(--primary-foreground); }
+.mode-btn:hover:not(.active) { color: var(--foreground); }
+
+/* ── PIN Input ── */
+#pin-input { text-align: center; font-size: 1.75rem; letter-spacing: 0.6em; font-family: 'JetBrains Mono', monospace; height: 3rem; }
+
+/* ── Track Grid ── */
+.track-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+@media (min-width: 640px) { .track-grid { grid-template-columns: repeat(4, 1fr); } }
+.track-tile { position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 8rem; padding: 1rem; border-radius: calc(var(--radius) + 4px); border: 1px solid var(--border); background: var(--track-idle); text-align: left; transition: all 0.15s; overflow: hidden; }
+.track-tile:hover:not(:disabled):not(.disabled) { border-color: color-mix(in srgb, var(--primary) 50%, transparent); background: var(--accent); }
+.track-tile.active { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.track-tile.disabled { opacity: 0.4; cursor: not-allowed; }
+.track-num { font-family: 'JetBrains Mono', monospace; font-size: 2.5rem; font-weight: 700; line-height: 1; }
+.track-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; opacity: 0.6; }
+.track-timer { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 600; }
+.track-pulse { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: color-mix(in srgb, var(--primary-foreground) 30%, transparent); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }
+
+/* ── Status Badges ── */
+.badge { display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.badge-open { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
+.badge-complete { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.badge-auto { background: color-mix(in srgb, var(--destructive) 15%, transparent); color: var(--destructive); }
+.badge-role { background: var(--accent); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.15rem 0.5rem; border-radius: 999px; }
+.badge-active { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.15rem 0.5rem; border-radius: 999px; }
+.badge-inactive { background: var(--muted); color: var(--muted-foreground); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.15rem 0.5rem; border-radius: 999px; }
+
+/* ── KPI Cards ── */
+.kpi-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 768px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+.kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 1.25rem; }
+.kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-foreground); }
+.kpi-icon { width: 2rem; height: 2rem; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; }
+.kpi-icon-primary { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
+.kpi-icon-muted { background: var(--muted); color: var(--muted-foreground); }
+.kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; margin-top: 0.75rem; }
+
+/* ── Heatmap ── */
+.heatmap { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.5rem; }
+@media (min-width: 640px) { .heatmap { grid-template-columns: repeat(16, 1fr); } }
+.heatmap-cell { aspect-ratio: 1; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--border) 40%, transparent); padding: 0.375rem; transition: transform 0.1s; cursor: default; }
+.heatmap-cell:hover { transform: scale(1.05); }
+
+/* ── Dialog / Modal ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+.modal-overlay.open { opacity: 1; pointer-events: auto; }
+.modal { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 1.5rem; width: 100%; max-width: 28rem; transform: scale(0.95); transition: transform 0.15s; }
+.modal-overlay.open .modal { transform: scale(1); }
+.modal-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+.modal-desc { font-size: 0.8rem; color: var(--muted-foreground); margin-bottom: 1.25rem; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
+
+/* ── Form helpers ── */
+.form-grid { display: grid; gap: 0.75rem; }
+@media (min-width: 640px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .form-grid-3 { grid-template-columns: repeat(3, 1fr); } }
+.form-field { display: flex; flex-direction: column; gap: 0.375rem; }
+.form-field.span2 { grid-column: span 2; }
+.spacer { margin-top: 1.5rem; }
+
+/* ── Toast ── */
+.toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 0.5rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.65rem 1rem; font-size: 0.85rem; min-width: 14rem; max-width: 22rem; box-shadow: 0 4px 24px rgba(0,0,0,0.4); pointer-events: auto; animation: toastIn 0.2s ease; }
+.toast.error { border-left: 3px solid var(--destructive); }
+.toast.success { border-left: 3px solid var(--success); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ── Misc ── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+.text-muted { color: var(--muted-foreground); }
+.text-primary { color: var(--primary); }
+.text-success { color: var(--success); }
+.text-destructive { color: var(--destructive); }
+.text-sm { font-size: 0.85rem; }
+.text-xs { font-size: 0.75rem; }
+.text-2xl { font-size: 1.5rem; font-weight: 600; }
+.text-right { text-align: right; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+.overflow-x { overflow-x: auto; }
+.space-y > * + * { margin-top: 1.25rem; }
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.items-end { align-items: flex-end; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.w-full { width: 100%; }
+.hidden { display: none !important; }
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.section-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted-foreground); margin-bottom: 0.75rem; }
+.dot { width: 0.375rem; height: 0.375rem; border-radius: 50%; }
+.dot-success { background: var(--success); }
+.infobox { border-radius: var(--radius); background: color-mix(in srgb, var(--muted) 50%, transparent); border: 1px solid var(--border); padding: 0.5rem 0.75rem; font-size: 0.75rem; color: var(--muted-foreground); }
+.empty-state { border: 1px dashed var(--border); border-radius: var(--radius); padding: 3rem; text-align: center; color: var(--muted-foreground); font-size: 0.875rem; }
+.user-avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; flex-shrink: 0; }
+.canvas-wrap { position: relative; height: 16rem; }
+
+/* ── Google Sheets Config Modal ── */
+.gs-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid; cursor: pointer; }
+.gs-badge.connected { border-color: color-mix(in srgb, var(--success) 40%, transparent); background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); }
+.gs-badge.disconnected { border-color: color-mix(in srgb, var(--warning) 40%, transparent); background: color-mix(in srgb, var(--warning) 10%, transparent); color: var(--warning); }
+.gs-step { background: var(--muted); border-radius: var(--radius); padding: 0.75rem; font-size: 0.8rem; }
+.gs-step code { background: var(--accent); padding: 0.1rem 0.35rem; border-radius: 4px; font-family: monospace; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     TOAST CONTAINER
+══════════════════════════════════════════════════════ -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     GOOGLE SHEETS CONFIG MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-gs">
+  <div class="modal" style="max-width:36rem">
+    <div class="modal-title">
+      <svg width="20" height="20" viewBox="0 0 48 48" style="flex-shrink:0"><rect width="48" height="48" rx="6" fill="#0F9D58"/><rect x="8" y="12" width="32" height="24" rx="2" fill="white"/><rect x="12" y="16" width="10" height="3" fill="#0F9D58"/><rect x="26" y="16" width="10" height="3" fill="#0F9D58"/><rect x="12" y="22" width="10" height="3" fill="#0F9D58"/><rect x="26" y="22" width="10" height="3" fill="#0F9D58"/><rect x="12" y="28" width="10" height="3" fill="#0F9D58"/><rect x="26" y="28" width="10" height="3" fill="#0F9D58"/></svg>
+      Google Sheets Integration
+    </div>
+    <p class="modal-desc">Connect your Google Sheet so completed sessions are synced automatically. Follow the 3 steps below.</p>
+
+    <div class="space-y">
+      <div class="gs-step">
+        <strong>Step 1 — Create Google Sheet</strong><br><br>
+        Create a new Google Sheet. Add a tab named <code>Logs</code>.<br>
+        In row 1, add these headers exactly:<br>
+        <code style="display:inline-block;margin-top:0.4rem;word-break:break-all">ID | SessionID | Date | Engineer | Track | TR_No | Project | VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg | TimeIn | TimeOut | ActualHrs | BilledHrs | OdoStart | OdoEnd | TrackCost | VehicleCost | TotalCost | Status</code>
+      </div>
+      <div class="gs-step">
+        <strong>Step 2 — Deploy Apps Script Web App</strong><br><br>
+        In your Sheet → Extensions → Apps Script. Paste the script from the link below. Deploy as <strong>Web App</strong> (Anyone access). Copy the Web App URL.<br><br>
+        <a href="https://gist.github.com/YOUR_GIST_URL" id="gs-script-link" target="_blank" style="color:var(--primary)">📄 Copy Apps Script code</a><br>
+        <small class="text-muted">(See the README block at the bottom of this HTML for the script text.)</small>
+      </div>
+      <div class="gs-step">
+        <strong>Step 3 — Paste Web App URL below</strong>
+        <div class="form-field mt-2">
+          <label for="gs-url">Apps Script Web App URL</label>
+          <input type="url" id="gs-url" placeholder="https://script.google.com/macros/s/…/exec">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-gs')">Cancel</button>
+      <button class="btn btn-outline" onclick="gsTest()">Test Connection</button>
+      <button class="btn btn-primary" onclick="gsSave()">Save & Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     END SESSION MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-end-session">
+  <div class="modal">
+    <div class="modal-title">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      End Session
+    </div>
+    <p class="modal-desc" id="end-session-desc">Enter the closing odometer reading to finalise this session.</p>
+    <div class="infobox mb-4" id="odo-start-info">ODO Start: <span class="mono text-foreground" id="odo-start-display">—</span> km</div>
+    <div class="form-field">
+      <label for="odo-end-input">ODO End (km)</label>
+      <input type="number" id="odo-end-input" class="mono" placeholder="0" style="height:3rem;font-size:1.5rem;text-align:center">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-end-session')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmEndSession()">Confirm & End Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     EDIT LOG MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-edit-log">
+  <div class="modal" style="max-width:36rem">
+    <div class="modal-title">Edit Log Entry</div>
+    <input type="hidden" id="edit-log-id">
+    <div class="form-grid" style="margin-bottom:1rem">
+      <div class="form-field"><label>Track</label><select id="edit-track"></select></div>
+      <div class="form-field"><label>Project</label><input type="text" id="edit-project"></div>
+      <div class="form-field"><label>Time In</label><input type="datetime-local" id="edit-time-in"></div>
+      <div class="form-field"><label>Time Out</label><input type="datetime-local" id="edit-time-out"></div>
+      <div class="form-field"><label>ODO End (km)</label><input type="number" id="edit-odo-end"></div>
+      <div class="form-field"><label>Status</label>
+        <select id="edit-status">
+          <option value="open">open</option>
+          <option value="complete">complete</option>
+          <option value="auto-closed">auto-closed</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-log')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditLog()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: LOGIN
+══════════════════════════════════════════════════════ -->
+<div id="page-login" class="page">
+  <!-- Hero (desktop) -->
+  <div class="login-hero">
+    <div class="grid-bg" style="position:absolute;inset:0;opacity:0.5"></div>
+    <div style="position:absolute;right:-8rem;top:-8rem;width:30rem;height:30rem;background:color-mix(in srgb,var(--primary) 10%,transparent);border-radius:50%;filter:blur(80px)"></div>
+    <div style="position:absolute;bottom:-10rem;left:-5rem;width:26rem;height:26rem;background:color-mix(in srgb,var(--chart3) 10%,transparent);border-radius:50%;filter:blur(80px)"></div>
+    <div style="position:relative;display:flex;align-items:center;gap:0.75rem">
+      <div style="width:2.75rem;height:2.75rem;background:var(--primary);color:var(--primary-foreground);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div>
+        <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--primary)">NATRAX · Pithampur</div>
+        <div style="font-size:1.1rem;font-weight:600">Track Logger</div>
+      </div>
+    </div>
+    <div style="position:relative;max-width:26rem">
+      <div style="display:inline-flex;align-items:center;gap:0.5rem;border:1px solid color-mix(in srgb,var(--border) 70%,transparent);background:color-mix(in srgb,var(--card) 60%,transparent);padding:0.25rem 0.75rem;border-radius:999px;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted-foreground);backdrop-filter:blur(8px);margin-bottom:1rem">
+        <span class="dot dot-success"></span> Offline-first PWA · v2.0 · Google Sheets Sync
+      </div>
+      <h1 style="font-size:2.25rem;font-weight:600;line-height:1.2;margin-bottom:1rem">
+        Tap a track. Log the lap.
+        <span style="display:block;color:var(--primary)">Bill the minute.</span>
+      </h1>
+      <p style="color:var(--muted-foreground);font-size:0.9rem">16 tracks. 12 engineers. One source of truth for every entry, exit, ODO reading and minute billed — even when the network drops on the high-speed loop.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-top:1.5rem">
+        <div class="card card-p"><div class="kpi-label">Tracks</div><div class="mono" style="font-weight:700;margin-top:0.25rem">T1–T16</div></div>
+        <div class="card card-p"><div class="kpi-label">Roles</div><div class="mono" style="font-weight:700;margin-top:0.25rem">3</div></div>
+        <div class="card card-p"><div class="kpi-label">Auto-exit</div><div class="mono" style="font-weight:700;margin-top:0.25rem">2 hr</div></div>
+      </div>
+    </div>
+    <div style="position:relative;font-size:0.7rem;color:var(--muted-foreground)">NATRAX, Pithampur, MP · Financial Year April–March · Confidential</div>
+  </div>
+
+  <!-- Login form -->
+  <div class="login-form-wrap">
+    <div class="login-form">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem">
+        <div style="width:2.25rem;height:2.25rem;background:var(--primary);color:var(--primary-foreground);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div style="font-size:0.85rem;font-weight:600">NATRAX Track Logger</div>
+      </div>
+      <h2 style="font-size:1.5rem;font-weight:600;margin-bottom:0.25rem">Sign in</h2>
+      <p class="text-muted text-sm" style="margin-bottom:1.25rem">Choose how you log into the system.</p>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-eng-btn" onclick="setLoginMode('engineer')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+          Engineer PIN
+        </button>
+        <button class="mode-btn" id="mode-admin-btn" onclick="setLoginMode('admin')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Admin / Manager
+        </button>
+      </div>
+      <div id="login-eng-fields">
+        <div class="form-field" style="margin-bottom:1rem">
+          <label for="pin-input">4–6 digit PIN</label>
+          <input type="password" id="pin-input" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off">
+        </div>
+      </div>
+      <div id="login-admin-fields" class="hidden">
+        <div class="form-field" style="margin-bottom:1rem">
+          <label for="pwd-input">Master password</label>
+          <input type="password" id="pwd-input" placeholder="Enter password" autocomplete="off">
+        </div>
+      </div>
+      <button class="btn btn-primary w-full" style="height:3rem;font-size:1rem;justify-content:center" onclick="doLogin()">Sign in</button>
+      <div style="margin-top:2rem;text-align:center;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted-foreground)">Operations Team · Internal use only</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TOPBAR & NAV (shared, injected by JS)
+══════════════════════════════════════════════════════ -->
+<div id="app-shell" class="hidden">
+  <div class="topbar">
+    <div class="topbar-inner max-w">
+      <div class="topbar-brand">
+        <div class="topbar-icon">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div>
+          <div class="topbar-title">NATRAX · Track Logger</div>
+          <div class="topbar-subtitle" id="topbar-title">—</div>
+          <div class="text-xs text-muted" id="topbar-subtitle"></div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span class="sync-badge sync-synced" id="sync-badge" title="Google Sheets config" style="cursor:pointer">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span id="sync-text">Synced</span>
+        </span>
+        <div id="user-chip" class="hidden" style="display:none;align-items:center;gap:0.5rem;border:1px solid var(--border);border-radius:var(--radius);padding:0.35rem 0.65rem">
+          <div class="user-avatar" id="user-avatar-chip">?</div>
+          <div>
+            <div class="text-xs font-semibold" id="user-name-chip">—</div>
+            <div class="text-xs text-muted" id="user-role-chip">—</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="doLogout()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="nav-tabs max-w" id="nav-tabs"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: ENGINEER LOG
+══════════════════════════════════════════════════════ -->
+<div id="page-log" class="page">
+  <main class="max-w space-y" style="padding:1.5rem 1rem">
+
+    <!-- Session card -->
+    <section class="card card-p">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-semibold" style="font-size:1.1rem">Session details</h2>
+          <p class="text-xs text-muted">Fill required fields then start the session.</p>
+        </div>
+        <span class="mono text-xs text-muted" id="tr-display">—</span>
+      </div>
+      <div class="form-grid" id="session-form">
+        <div class="form-field"><label>TR Number <span class="text-primary">*</span></label><input type="text" id="s-tr" placeholder="01" oninput="updateMetaField('trNumber',this.value)"></div>
+        <div class="form-field"><label>Project <span class="text-primary">*</span></label><input type="text" id="s-project" placeholder="NVH-2025" oninput="updateMetaField('project',this.value)"></div>
+        <div class="form-field"><label>Vehicle Make</label><input type="text" id="s-make" placeholder="Tata" oninput="updateMetaField('vehicleMake',this.value)"></div>
+        <div class="form-field"><label>Vehicle Model</label><input type="text" id="s-model" placeholder="Nexon EV" oninput="updateMetaField('vehicleModel',this.value)"></div>
+        <div class="form-field"><label>Vehicle Class <span class="text-primary">*</span></label>
+          <select id="s-class" onchange="updateMetaField('vehicleClass',this.value)">
+            <option value="Hatchback Basic">Hatchback Basic</option>
+            <option value="Hatchback Premium">Hatchback Premium</option>
+            <option value="Compact SUV">Compact SUV</option>
+            <option value="Mid SUV / MUV">Mid SUV / MUV</option>
+            <option value="Large SUV">Large SUV</option>
+            <option value="EV">EV</option>
+            <option value="Utility / LCV">Utility / LCV</option>
+            <option value="Luxury">Luxury</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Track Category <span class="text-primary">*</span></label>
+          <select id="s-cat" onchange="updateMetaField('vehicleCategory',this.value)">
+            <option value="PCR">PCR (GVW &lt; 3.5T)</option>
+            <option value="2W">2W</option>
+            <option value="Commercial">Commercial (GVW ≥ 3.5T)</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Vehicle Reg. No.</label><input type="text" id="s-reg" placeholder="MP09 XX 1234" oninput="updateMetaField('vehicleReg',this.value)"></div>
+        <div class="form-field"><label>RFID <span class="text-primary">*</span></label><input type="text" id="s-rfid" inputmode="numeric" placeholder="NATRAX tag" oninput="updateMetaField('rfid',this.value.replace(/\D/g,''))"></div>
+        <div class="form-field"><label>Test Date</label><input type="date" id="s-date" oninput="updateMetaField('testDate',this.value)"></div>
+        <div class="form-field"><label>Test Type</label><input type="text" id="s-type" placeholder="Durability / NVH" oninput="updateMetaField('testType',this.value)"></div>
+        <div class="form-field"><label>ODO Start (km) <span class="text-primary">*</span></label><input type="number" id="s-odo" class="mono" placeholder="0" oninput="updateMetaField('odoStart',Number(this.value))"></div>
+        <div class="form-field span2"><label>Remarks</label><textarea id="s-remarks" rows="1" placeholder="Optional notes" oninput="updateMetaField('remarks',this.value)"></textarea></div>
+      </div>
+      <hr class="divider">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs text-muted" id="session-status-msg">Fill required fields then start the session.</div>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" onclick="syncNow()">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Sync now
+          </button>
+          <button class="btn btn-primary" id="btn-start-session" onclick="startSession()">
+            Start session
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="btn btn-destructive hidden" id="btn-end-session" onclick="openEndSession()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></svg>
+            End session
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Track grid -->
+    <section class="card card-p">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-semibold" style="font-size:1.1rem">Track grid</h2>
+          <p class="text-xs text-muted">Tap to enter a track · Tap again to exit</p>
+        </div>
+        <div class="flex gap-3 text-xs text-muted">
+          <div class="flex items-center gap-1.5"><span style="width:10px;height:10px;background:var(--track-idle);border-radius:3px;display:inline-block"></span> Idle</div>
+          <div class="flex items-center gap-1.5"><span style="width:10px;height:10px;background:var(--primary);border-radius:3px;display:inline-block"></span> Active</div>
+        </div>
+      </div>
+      <div class="track-grid" id="track-grid"></div>
+    </section>
+
+    <!-- Today's logs -->
+    <section class="card card-p">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold" style="font-size:1.1rem">Today's logs</h2>
+        <span class="text-xs text-muted" id="today-count">0 entries</span>
+      </div>
+      <div class="overflow-x" id="today-logs-wrap">
+        <p class="text-muted text-sm">No sessions logged today yet.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: ADMIN DASHBOARD
+══════════════════════════════════════════════════════ -->
+<div id="page-dashboard" class="page">
+  <main class="max-w space-y" style="padding:1.5rem 1rem">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 class="text-2xl">Operations dashboard</h1>
+        <p class="text-sm text-muted">Cross-track cost, vehicle hiring, utilisation.</p>
+      </div>
+      <div class="flex gap-2">
+        <select id="dash-project" onchange="renderDashboard()" style="width:12rem">
+          <option value="all">All projects</option>
+        </select>
+        <select id="dash-month" onchange="renderDashboard()" style="width:11rem">
+          <option value="all">All months</option>
+          <option value="0">January</option>
+          <option value="1">February</option>
+          <option value="2">March</option>
+          <option value="3">April</option>
+          <option value="4">May</option>
+          <option value="5">June</option>
+          <option value="6">July</option>
+          <option value="7">August</option>
+          <option value="8">September</option>
+          <option value="9">October</option>
+          <option value="10">November</option>
+          <option value="11">December</option>
+        </select>
+        <select id="dash-quarter" onchange="renderDashboard()" style="width:11rem">
+          <option value="all">All time</option>
+          <option value="q1">Q1 (Apr–Jun)</option>
+          <option value="q2">Q2 (Jul–Sep)</option>
+          <option value="q3">Q3 (Oct–Dec)</option>
+          <option value="q4">Q4 (Jan–Mar)</option>
+        </select>
+      </div>
+    </div>
+    <div class="kpi-grid" id="kpi-cards"></div>
+    <div style="display:grid;gap:1.25rem;grid-template-columns:1fr" id="dash-charts-row">
+      <div class="card card-p" style="grid-column:1/-1">
+        <div class="section-title">Sessions per track</div>
+        <div class="canvas-wrap"><canvas id="chart-track"></canvas></div>
+      </div>
+      <div class="card card-p">
+        <div class="section-title">Spend by project</div>
+        <div class="canvas-wrap"><canvas id="chart-project"></canvas></div>
+      </div>
+    </div>
+    <div class="card card-p">
+      <div class="section-title">Track utilisation heatmap</div>
+      <div class="heatmap" id="heatmap"></div>
+    </div>
+    <div class="card card-p">
+      <div class="flex items-center justify-between mb-4">
+        <div class="section-title" style="margin:0">Recent sessions</div>
+        <span class="text-xs text-muted" id="dash-total">0 total</span>
+      </div>
+      <div class="overflow-x" id="dash-recent-table"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: ADMIN LOGS
+══════════════════════════════════════════════════════ -->
+<div id="page-logs" class="page">
+  <main class="max-w space-y" style="padding:1.5rem 1rem">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 class="text-2xl">Track logs</h1>
+        <p class="text-sm text-muted">All sessions across all engineers. Admin override.</p>
+      </div>
+      <button class="btn btn-outline" onclick="exportCSV()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export NATRAX timesheet
+      </button>
+    </div>
+    <div class="card card-p">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem" id="log-filters">
+        <div class="form-field" style="grid-column:1/-1">
+          <label>Search</label>
+          <input type="text" id="log-search" placeholder="Project, TR, vehicle…" oninput="renderLogs()">
+        </div>
+        <div class="form-field"><label>Engineer</label>
+          <select id="log-filter-eng" onchange="renderLogs()"><option value="all">All engineers</option></select>
+        </div>
+        <div class="form-field"><label>Track</label>
+          <select id="log-filter-track" onchange="renderLogs()">
+            <option value="all">All tracks</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Category</label>
+          <select id="log-filter-cat" onchange="renderLogs()">
+            <option value="all">All categories</option>
+            <option value="2W">2W</option>
+            <option value="PCR">PCR</option>
+            <option value="Commercial">Commercial</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Status</label>
+          <select id="log-filter-status" onchange="renderLogs()">
+            <option value="all">All statuses</option>
+            <option value="open">Open</option>
+            <option value="complete">Complete</option>
+            <option value="auto-closed">Auto-closed</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="overflow-x" id="logs-table-wrap"></div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: BILLING
+══════════════════════════════════════════════════════ -->
+<div id="page-billing" class="page">
+  <main class="max-w space-y" style="padding:1.5rem 1rem">
+    <div class="flex items-end justify-between">
+      <div>
+        <h1 class="text-2xl">Billing configuration</h1>
+        <p class="text-sm text-muted">Per-track minimum hours and hourly rates. Changes apply to new sessions only.</p>
+      </div>
+      <button class="btn btn-primary" onclick="saveBilling()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2l11 0 5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save changes
+      </button>
+    </div>
+    <div class="card card-p overflow-x">
+      <div class="section-title">Minimum billing hours &amp; rates per track</div>
+      <table id="billing-table">
+        <thead><tr>
+          <th>Track</th><th>2W (min hr)</th><th>PCR (min hr)</th><th>Commercial (min hr)</th>
+          <th>Rate PCR/2W (₹/hr)</th><th>Rate Commercial (₹/hr)</th>
+        </tr></thead>
+        <tbody id="billing-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: VEHICLES
+══════════════════════════════════════════════════════ -->
+<div id="page-vehicles" class="page">
+  <main class="max-w space-y" style="padding:1.5rem 1rem">
+    <div>
+      <h1 class="text-2xl">Vehicle class rates</h1>
+      <p class="text-sm text-muted">Per-session hiring rate by vehicle class. Changes apply to new sessions only.</p>
+    </div>
+    <div class="overflow-x card card-p" id="vehicles-table-wrap"></div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE: USERS
+══════════════════════════════════════════════════════ -->
+<div id="page-users" class="page">
+  <main class="max-w space-y" style="padding:1.5rem 1rem">
+    <div>
+      <h1 class="text-2xl">User management</h1>
+      <p class="text-sm text-muted">Create engineers, managers, and admins.</p>
+    </div>
+    <div class="card card-p">
+      <div class="section-title">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:inline;color:var(--primary)"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create user
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem">
+        <div class="form-field"><label>Name</label><input type="text" id="u-name" placeholder="A. Patel"></div>
+        <div class="form-field"><label>Role</label>
+          <select id="u-role" onchange="updateCredLabel()">
+            <option value="engineer">Engineer</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-field"><label id="u-cred-label">PIN (4–6 digits)</label><input type="text" id="u-cred" placeholder="1234"></div>
+        <div class="form-field items-end flex"><button class="btn btn-primary w-full" onclick="addUser()" style="margin-top:1.25rem">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add user
+        </button></div>
+      </div>
+    </div>
+    <div class="overflow-x card card-p" id="users-table-wrap"></div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MAIN JAVASCRIPT
+══════════════════════════════════════════════════════ -->
+<script>
+// ──────────────────────────────────────────────────────
+// CONSTANTS
+// ──────────────────────────────────────────────────────
+const TRACKS = Array.from({length:16},(_,i)=>`T${i+1}`);
+const DISABLED_TRACKS = new Set(['T10','T14','T15','T16']);
+const STORE_KEY = 'natrax-track-logger-v2';
+
+// ──────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────
+let state = {
+  auth: { userId: null },
+  users: [],
+  vehicleClassRates: {},
+  billing: null,
+  logs: [],
+  gsUrl: '',    // Google Sheets Apps Script URL
+};
+
+// ──────────────────────────────────────────────────────
+// SEED DATA
+// ──────────────────────────────────────────────────────
+function seedState() {
+  function defaultMinHours() {
+    const out = {};
+    TRACKS.forEach((t,i) => { out[t] = { '2W':1, PCR: i<4?2:1.5, Commercial: i<4?2.5:2 }; });
+    return out;
+  }
+  function defaultRates() {
+    const out = {};
+    TRACKS.forEach((t,i) => { out[t] = { pcr: 1500+(i%4)*250, commercial: 2500+(i%4)*400 }; });
+    return out;
+  }
+  return {
+    auth: { userId: null },
+    users: [
+      { id:'u-admin', name:'Admin', role:'admin', password:'admin123', active:true, createdAt:Date.now() },
+      { id:'u-mgr', name:'R. Sharma', role:'manager', password:'manager123', active:true, createdAt:Date.now() },
+      { id:'u-eng1', name:'A. Patel', role:'engineer', pin:'1234', active:true, createdAt:Date.now() },
+      { id:'u-eng2', name:'S. Iyer', role:'engineer', pin:'5678', active:true, createdAt:Date.now() },
+      { id:'u-eng3', name:'M. Khan', role:'engineer', pin:'4321', active:true, createdAt:Date.now() },
+    ],
+    vehicleClassRates: {
+      'Hatchback Basic': 11500,
+      'Hatchback Premium': 14500,
+      'Compact SUV': 17500,
+      'Mid SUV / MUV': 21500,
+      'Large SUV': 39000,
+      'EV': 29000,
+      'Utility / LCV': 37000,
+      'Luxury': 85000,
+    },
+    billing: {
+      minHours: defaultMinHours(),
+      rates: defaultRates(),
+      configUpdatedAt: 0,
+    },
+    logs: [],
+    gsUrl: '',
+  };
+}
+
+// Hardcoded fallback so every device/browser auto-connects to the team's
+// shared Google Sheet backend, even before localStorage has ever been set
+// on that device. Still overridable from Settings if the URL ever changes.
+const DEFAULT_GS_URL = 'https://script.google.com/macros/s/AKfycbx7YQIntzCCTKEwqKIK31WXMyE-dDDj9v47g_k3gbtLIa6I8uwVV-BY-4nsDvDqfZW7uw/exec';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const saved=JSON.parse(raw); state = { ...seedState(), ...saved, vehicleClassRates:{...seedState().vehicleClassRates,...(saved.vehicleClassRates||{})}, auth:{userId:null} }; }
+    else { state = seedState(); }
+  } catch(e) { state = seedState(); }
+  if (!state.gsUrl) { state.gsUrl = DEFAULT_GS_URL; saveState(); }
+}
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){}
+}
+
+// ──────────────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2,10);
+
+function fmtINR(n) {
+  return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n||0);
+}
+function fmtDuration(ms) {
+  const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function fmtHM(ms) {
+  const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function fmtTime(ts) {
+  return new Date(ts).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
+}
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function dtLocal(ts) {
+  const d=new Date(ts);
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ──────────────────────────────────────────────────────
+// BILLING COMPUTATION
+// ──────────────────────────────────────────────────────
+function computeBilling(log) {
+  if (!log.exitAt) return {actualHours:0,billedHours:0,trackCost:0,vehicleCost:0,totalCost:0};
+  const actualHours=(log.exitAt-log.entryAt)/3_600_000;
+  const cat=log.meta.vehicleCategory||'PCR';   // default to PCR if blank
+  const trackRates=state.billing.minHours[log.track];
+  const min=(trackRates&&trackRates[cat])||1;   // fallback 1hr if track/cat missing
+  const billedHours=Math.max(actualHours,min);
+  const rateSet=state.billing.rates[log.track]||(Object.values(state.billing.rates)[0]||{pcr:1500,commercial:2500});
+  const hourly=cat==='Commercial'?rateSet.commercial:rateSet.pcr;
+  const trackCost=billedHours*hourly;
+  const vehicleCost=state.vehicleClassRates[log.meta.vehicleClass]||0;
+  return {actualHours,billedHours,trackCost,vehicleCost,totalCost:trackCost+vehicleCost};
+}
+
+// ──────────────────────────────────────────────────────
+// TOAST
+// ──────────────────────────────────────────────────────
+function toast(msg,type='success') {
+  const c=document.getElementById('toast-container');
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;
+  const icon=type==='success'
+    ?`<svg width="14" height="14" fill="none" stroke="var(--success)" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+    :`<svg width="14" height="14" fill="none" stroke="var(--destructive)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+  el.innerHTML=`${icon}<span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+// ──────────────────────────────────────────────────────
+// MODAL
+// ──────────────────────────────────────────────────────
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+// ──────────────────────────────────────────────────────
+// PAGE ROUTING
+// ──────────────────────────────────────────────────────
+let currentPage = 'login';
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('app-shell').classList.add('hidden');
+  const pg = document.getElementById(`page-${name}`);
+  if (pg) pg.classList.add('active');
+
+  if (name !== 'login') {
+    document.getElementById('app-shell').classList.remove('hidden');
+    renderTopbar(name);
+    renderNavTabs(name);
+  }
+  currentPage = name;
+}
+
+// ──────────────────────────────────────────────────────
+// TOPBAR
+// ──────────────────────────────────────────────────────
+function renderTopbar(page) {
+  const user = currentUser();
+  const titles = { log:'Track Logger', dashboard:'Operations Dashboard', logs:'Track Logs', billing:'Billing Config', vehicles:'Vehicle Rates', users:'User Management' };
+  document.getElementById('topbar-title').textContent = titles[page]||page;
+  document.getElementById('topbar-subtitle').textContent = user ? (user.role==='engineer'?`Engineer · ${user.name}`:``) : '';
+  const chip = document.getElementById('user-chip');
+  if (user) {
+    chip.style.display='flex';
+    document.getElementById('user-avatar-chip').textContent = user.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+    document.getElementById('user-name-chip').textContent = user.name;
+    document.getElementById('user-role-chip').textContent = user.role;
+  } else { chip.style.display='none'; }
+  updateSyncBadge();
+}
+
+function updateSyncBadge() {
+  const pending = state.logs.filter(l=>l.sync==='pending'&&l.status!=='open').length;
+  const badge = document.getElementById('sync-badge');
+  const text = document.getElementById('sync-text');
+  const connected = !!state.gsUrl;
+  if (!connected) {
+    badge.className='sync-badge sync-offline';
+    text.textContent='Sheets: Not linked';
+  } else if (pending>0) {
+    badge.className='sync-badge sync-pending';
+    text.textContent=`Pending · ${pending}`;
+  } else {
+    badge.className='sync-badge sync-synced';
+    text.textContent='Synced ✓';
+  }
+  const isAdmin = currentUser()?.role==='admin';
+  badge.style.cursor = isAdmin ? 'pointer' : 'default';
+  badge.style.opacity = isAdmin ? '1' : '0.6';
+  badge.onclick = isAdmin ? function(){ openModal('modal-gs'); } : null;
+}
+
+function renderNavTabs(active) {
+  const user = currentUser();
+  if (!user) return;
+  const tabs = user.role==='engineer'
+    ? [{id:'log',label:'Track Logger',page:'log'}]
+    : [
+        {id:'dashboard',label:'Dashboard',page:'dashboard'},
+        {id:'logs',label:'Logs',page:'logs'},
+        {id:'billing',label:'Billing',page:'billing'},
+        {id:'vehicles',label:'Vehicles',page:'vehicles'},
+        ...(user.role==='admin'?[{id:'users',label:'Users',page:'users'}]:[]),
+      ];
+  const nav = document.getElementById('nav-tabs');
+  nav.innerHTML = tabs.map(t=>`<button class="nav-tab${active===t.id?' active':''}" onclick="navigateTo('${t.page}','${t.id}')">${t.label}</button>`).join('');
+}
+
+function navigateTo(page, tabId) {
+  showPage(page);
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>{ if(t.textContent===tabId||t.onclick?.toString().includes(`'${tabId}'`)) t.classList.add('active'); });
+  renderPageContent(page);
+}
+
+function renderPageContent(page) {
+  if (page==='log') renderLogPage();
+  if (page==='dashboard') renderDashboard();
+  if (page==='logs') renderLogs();
+  if (page==='billing') renderBilling();
+  if (page==='vehicles') renderVehicles();
+  if (page==='users') renderUsers();
+}
+
+// ──────────────────────────────────────────────────────
+// AUTH
+// ──────────────────────────────────────────────────────
+function currentUser() {
+  return state.users.find(u=>u.id===state.auth.userId)||null;
+}
+
+let loginMode = 'engineer';
+function setLoginMode(m) {
+  loginMode = m;
+  document.getElementById('mode-eng-btn').classList.toggle('active', m==='engineer');
+  document.getElementById('mode-admin-btn').classList.toggle('active', m==='admin');
+  document.getElementById('login-eng-fields').classList.toggle('hidden', m!=='engineer');
+  document.getElementById('login-admin-fields').classList.toggle('hidden', m==='engineer');
+}
+
+function doLogin() {
+  if (loginMode==='engineer') {
+    const pin = document.getElementById('pin-input').value;
+    const u = state.users.find(x=>x.role==='engineer'&&x.active&&x.pin===pin);
+    if (u) { state.auth.userId=u.id; saveState(); afterLogin(u); }
+    else toast('Invalid PIN','error');
+  } else {
+    const pwd = document.getElementById('pwd-input').value;
+    const u = state.users.find(x=>(x.role==='admin'||x.role==='manager')&&x.active&&x.password===pwd);
+    if (u) { state.auth.userId=u.id; saveState(); afterLogin(u); }
+    else toast('Invalid password','error');
+  }
+}
+
+function afterLogin(user) {
+  document.getElementById('pin-input').value='';
+  document.getElementById('pwd-input').value='';
+  if (user.role==='engineer') {
+    showPage('log');
+    renderLogPage();
+  } else {
+    showPage('dashboard');
+    renderDashboard();
+  }
+}
+
+function doLogout() {
+  state.auth.userId=null; saveState();
+  showPage('login');
+}
+
+// Enter key on login
+document.getElementById('pin-input').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('pwd-input').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+// ──────────────────────────────────────────────────────
+// SESSION STATE (ephemeral, not persisted)
+// ──────────────────────────────────────────────────────
+let sessionMeta = null;
+let sessionStarted = false;
+let sessionId = null;
+
+function emptyMeta(name) {
+  return {
+    trNumber:'', project:'', vehicleMake:'', vehicleModel:'',
+    vehicleClass:'Hatchback Basic', vehicleCategory:'PCR', vehicleReg:'', rfid:'',
+    testDate: new Date().toISOString().slice(0,10),
+    testType:'', testEngineer:name, odoStart:0, remarks:'',
+  };
+}
+
+function updateMetaField(field, val) {
+  if (!sessionMeta) sessionMeta = emptyMeta(currentUser()?.name||'');
+  sessionMeta[field] = val;
+  updateTrDisplay();
+}
+
+function updateTrDisplay() {
+  const tr = sessionMeta?.trNumber;
+  document.getElementById('tr-display').textContent = tr ? `TR-${new Date().getFullYear()}-${String(tr).padStart(2,'0')}` : '—';
+}
+
+// ──────────────────────────────────────────────────────
+// LOG PAGE
+// ──────────────────────────────────────────────────────
+function renderLogPage() {
+  const user = currentUser();
+  if (!user) return;
+  if (!sessionMeta) { sessionMeta = emptyMeta(user.name); }
+  renderTrackGrid();
+  renderTodayLogs();
+  updateSessionStatus();
+  // Set date default
+  if (!document.getElementById('s-date').value) document.getElementById('s-date').value = new Date().toISOString().slice(0,10);
+  // Set form fields from meta
+  document.getElementById('s-tr').value = sessionMeta.trNumber;
+  document.getElementById('s-project').value = sessionMeta.project;
+  document.getElementById('s-make').value = sessionMeta.vehicleMake;
+  document.getElementById('s-model').value = sessionMeta.vehicleModel;
+  document.getElementById('s-class').value = sessionMeta.vehicleClass||'Hatchback Basic';
+  document.getElementById('s-cat').value = sessionMeta.vehicleCategory;
+  document.getElementById('s-reg').value = sessionMeta.vehicleReg;
+  document.getElementById('s-rfid').value = sessionMeta.rfid;
+  document.getElementById('s-type').value = sessionMeta.testType;
+  document.getElementById('s-odo').value = sessionMeta.odoStart||'';
+  document.getElementById('s-remarks').value = sessionMeta.remarks;
+}
+
+// Disable/enable session form inputs
+function setFormDisabled(disabled) {
+  ['s-tr','s-project','s-make','s-model','s-class','s-cat','s-reg','s-rfid','s-date','s-type','s-odo','s-remarks'].forEach(id=>{
+    document.getElementById(id).disabled = disabled;
+  });
+}
+
+function renderTrackGrid() {
+  const user = currentUser();
+  const myActive = state.logs.find(l=>l.engineerId===user?.id&&l.status==='open');
+  const grid = document.getElementById('track-grid');
+  grid.innerHTML = TRACKS.map(t => {
+    const isActive = myActive?.track===t;
+    const disabled = DISABLED_TRACKS.has(t) || (!!myActive&&!isActive) || (!sessionStarted&&!myActive);
+    return `<button class="track-tile${isActive?' active':''}${disabled?' disabled':''}" id="tile-${t}" onclick="handleTrackTap('${t}')" ${disabled?'disabled':''}>
+      <div class="flex items-center justify-between">
+        <span class="track-label">Track</span>
+        ${isActive
+          ?`<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation:pulse 1.5s infinite"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>`
+          :`<span style="width:8px;height:8px;border-radius:50%;background:${disabled?'var(--border)':'var(--success)'};display:inline-block"></span>`}
+      </div>
+      <div class="flex items-end justify-between">
+        <div class="track-num">${t}</div>
+        ${isActive&&myActive?.entryAt?`<div class="track-timer" id="timer-${t}">00:00:00</div>`:''}
+      </div>
+      ${isActive?'<div class="track-pulse"></div>':''}
+    </button>`;
+  }).join('');
+  // Start live timers
+  if (myActive) startTileTimer(myActive.track, myActive.entryAt);
+}
+
+let tileTimerInterval = null;
+function startTileTimer(track, entryAt) {
+  clearInterval(tileTimerInterval);
+  tileTimerInterval = setInterval(()=>{
+    const el=document.getElementById(`timer-${track}`);
+    if(el) el.textContent=fmtDuration(Date.now()-entryAt);
+  },1000);
+}
+
+function handleTrackTap(track) {
+  const user = currentUser();
+  if(!user) return;
+  const myActive = state.logs.find(l=>l.engineerId===user.id&&l.status==='open');
+  if(myActive) {
+    if(myActive.track===track) {
+      closeLog(myActive.id);
+      toast(`Exited ${track}`);
+    } else {
+      toast(`Exit ${myActive.track} first`,'error');
+    }
+    return;
+  }
+  if(!sessionStarted||!sessionId) { toast('Fill session details and tap "Start session"','error'); return; }
+  startLog(user, track, {...sessionMeta}, sessionId);
+  toast(`Entered ${track}`);
+}
+
+function startLog(engineer, track, meta, sid) {
+  const logId=uid();
+  const newLog={
+    id:logId, sessionId:sid, engineerId:engineer.id, engineerName:engineer.name,
+    track, meta, entryAt:Date.now(), status:'open', sync:'pending',
+  };
+  state.logs.unshift(newLog);
+  saveState();
+  renderTrackGrid();
+  renderTodayLogs();
+  updateSessionStatus();
+  return logId;
+}
+
+function closeLog(logId) {
+  state.logs=state.logs.map(l=>l.id===logId?{...l,exitAt:Date.now(),status:'complete',sync:'pending'}:l);
+  saveState();
+  clearInterval(tileTimerInterval);
+  renderTrackGrid();
+  renderTodayLogs();
+  updateSessionStatus();
+  updateSyncBadge();
+}
+
+function startSession() {
+  const user = currentUser();
+  if(!user) return;
+  const m = sessionMeta;
+  if(!m.trNumber||!m.project||!m.vehicleClass||!m.rfid||!m.odoStart) {
+    toast('Complete all required fields','error'); return;
+  }
+  sessionMeta.trNumber = String(m.trNumber).padStart(2,'0');
+  sessionStarted=true;
+  sessionId=uid();
+  document.getElementById('btn-start-session').classList.add('hidden');
+  document.getElementById('btn-end-session').classList.remove('hidden');
+  setFormDisabled(true);
+  renderTrackGrid();
+  updateSessionStatus();
+  toast('Session ready — tap tracks to log usage');
+}
+
+function updateSessionStatus() {
+  const user=currentUser();
+  const myActive=state.logs.find(l=>l.engineerId===user?.id&&l.status==='open');
+  const sLogs=sessionId?state.logs.filter(l=>l.sessionId===sessionId):[];
+  const el=document.getElementById('session-status-msg');
+  if(myActive) el.innerHTML=`<span class="text-primary">Active on ${myActive.track}. Tap ${myActive.track} again to exit.</span>`;
+  else if(sessionStarted) el.innerHTML=`<span class="text-success">Session active · ${sLogs.length} track${sLogs.length===1?'':'s'} logged. Tap a tile or end the session.</span>`;
+  else el.innerHTML=`<span class="text-muted">Fill required fields then start the session.</span>`;
+  // btn
+  const endBtn=document.getElementById('btn-end-session');
+  if(endBtn) endBtn.disabled=!!myActive||sLogs.length===0;
+}
+
+function openEndSession() {
+  const sLogs=sessionId?state.logs.filter(l=>l.sessionId===sessionId):[];
+  if(sLogs.length===0){toast('Log at least one track first','error');return;}
+  document.getElementById('odo-start-display').textContent=sessionMeta?.odoStart||0;
+  document.getElementById('end-session-desc').textContent=`Enter the closing odometer reading to finalise this session (${sLogs.length} track${sLogs.length===1?'':'s'}).`;
+  document.getElementById('odo-end-input').value='';
+  openModal('modal-end-session');
+}
+
+function confirmEndSession() {
+  const v=Number(document.getElementById('odo-end-input').value);
+  if(!v||v<(sessionMeta?.odoStart||0)){toast('ODO End must be greater than ODO Start','error');return;}
+  endSession(sessionId,v);
+  closeModal('modal-end-session');
+  toast('Session ended');
+  sessionStarted=false; sessionId=null; sessionMeta=emptyMeta(currentUser()?.name||'');
+  document.getElementById('btn-start-session').classList.remove('hidden');
+  document.getElementById('btn-end-session').classList.add('hidden');
+  setFormDisabled(false);
+  renderLogPage();
+  // Clear form
+  ['s-tr','s-project','s-make','s-model','s-reg','s-rfid','s-type','s-odo','s-remarks'].forEach(id=>{document.getElementById(id).value='';});
+  document.getElementById('s-cat').value='PCR';
+  document.getElementById('s-date').value=new Date().toISOString().slice(0,10);
+}
+
+function endSession(sid, odoEnd) {
+  const sLogs=state.logs.filter(l=>l.sessionId===sid).sort((a,b)=>a.entryAt-b.entryAt);
+  const firstId=sLogs[0]?.id;
+  state.logs=state.logs.map(l=>{
+    if(l.sessionId!==sid)return l;
+    const closed={...l,exitAt:l.exitAt||Date.now(),odoEnd,status:l.status==='open'?'complete':l.status,sync:'pending'};
+    const b=computeBilling(closed);
+    if(l.id!==firstId){b.vehicleCost=0;b.totalCost=b.trackCost;}
+    return {...closed,...b};
+  });
+  saveState(); updateSyncBadge();
+  // Auto sync to Google Sheets
+  const toSync=state.logs.filter(l=>l.sync==='pending'&&l.status!=='open');
+  toSync.forEach(l=>syncLogToSheets(l));
+}
+
+let todayLogIntervals=[];
+function renderTodayLogs() {
+  // Clear any previously-scheduled row timers before re-rendering
+  todayLogIntervals.forEach(clearInterval);
+  todayLogIntervals=[];
+  const user=currentUser();
+  const today=new Date().toISOString().slice(0,10);
+  const todays=state.logs.filter(l=>l.engineerId===user?.id&&new Date(l.entryAt).toISOString().slice(0,10)===today);
+  document.getElementById('today-count').textContent=`${todays.length} entries`;
+  const wrap=document.getElementById('today-logs-wrap');
+  if(todays.length===0){wrap.innerHTML='<p class="text-muted text-sm">No sessions logged today yet.</p>';return;}
+  wrap.innerHTML=`<table>
+    <thead><tr><th>Track</th><th>TR No.</th><th>Vehicle</th><th>In</th><th>Out</th><th>Duration</th><th>Status</th><th class="text-right">Bill</th></tr></thead>
+    <tbody>${todays.map(l=>`<tr>
+      <td><span class="mono font-semibold text-primary">${l.track}</span></td>
+      <td class="mono text-xs">${l.meta.trNumber?`TR-${new Date(l.entryAt).getFullYear()}-${l.meta.trNumber}`:'—'}</td>
+      <td>${l.meta.vehicleMake} ${l.meta.vehicleModel}</td>
+      <td class="mono">${fmtTime(l.entryAt)}</td>
+      <td class="mono">${l.exitAt?fmtTime(l.exitAt):'—'}</td>
+      <td class="mono" id="dur-${l.id}">${l.exitAt?fmtDuration(l.exitAt-l.entryAt):'—'}</td>
+      <td>${statusBadge(l.status)}</td>
+      <td class="text-right mono">${l.totalCost?fmtINR(l.totalCost):'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  // Live timers for open logs only — stopped automatically once the log closes
+  todays.filter(l=>!l.exitAt).forEach(l=>{
+    const intervalId=setInterval(()=>{
+      const fresh=state.logs.find(x=>x.id===l.id);
+      if(!fresh||fresh.exitAt){ clearInterval(intervalId); return; }
+      const el=document.getElementById(`dur-${l.id}`);
+      if(!el){ clearInterval(intervalId); return; }
+      el.textContent=fmtDuration(Date.now()-l.entryAt);
+    },1000);
+    todayLogIntervals.push(intervalId);
+  });
+}
+
+function statusBadge(status) {
+  const map={open:'badge-open',complete:'badge-complete','auto-closed':'badge-auto'};
+  return `<span class="badge ${map[status]||''}">${status}</span>`;
+}
+
+function syncNow() {
+  const toSync=state.logs.filter(l=>l.sync==='pending'&&l.status!=='open');
+  if(toSync.length===0){toast('Nothing pending to sync');return;}
+  toSync.forEach(l=>syncLogToSheets(l));
+  toast(`Syncing ${toSync.length} log(s)…`);
+}
+
+// ──────────────────────────────────────────────────────
+// GOOGLE SHEETS SYNC
+// ──────────────────────────────────────────────────────
+async function syncLogToSheets(log) {
+  if(!state.gsUrl) return;
+  // Re-compute billing for any log that has an exitAt but zero billedHours —
+  // this happens when iOS kills the app mid-session so endSession() never ran,
+  // but exitAt was recovered on next open (e.g. via auto-close or manual edit).
+  let l = log;
+  if(l.exitAt && (!l.billedHours || l.billedHours === 0)) {
+    const b = computeBilling(l);
+    // Only patch if computation produced real values
+    if(b.billedHours > 0) {
+      l = {...l, ...b};
+      state.logs = state.logs.map(x => x.id === l.id ? l : x);
+      saveState();
+    }
+  }
+  const row=[
+    l.id, l.sessionId,
+    fmtDate(l.entryAt), l.engineerName, l.track,
+    l.meta.trNumber, l.meta.project,
+    l.meta.vehicleMake, l.meta.vehicleModel,
+    l.meta.vehicleClass, l.meta.vehicleCategory, l.meta.rfid, l.meta.vehicleReg,
+    fmtTime(l.entryAt), l.exitAt?fmtTime(l.exitAt):'',
+    (l.actualHours||0).toFixed(2), (l.billedHours||0).toFixed(2),
+    l.meta.odoStart, l.odoEnd||'',
+    (l.trackCost||0).toFixed(0), (l.vehicleCost||0).toFixed(0), (l.totalCost||0).toFixed(0),
+    l.status,
+  ];
+  try {
+    // text/plain avoids CORS preflight so we get a real readable response
+    // back — unlike no-cors we can confirm the upsert actually landed.
+    const res = await fetch(state.gsUrl, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'appendRow',sheetName:'Logs',row}),
+    });
+    const result = await res.json();
+    if(result && result.ok) {
+      state.logs=state.logs.map(x=>x.id===l.id?{...x,sync:'synced'}:x);
+      saveState(); updateSyncBadge();
+    } else {
+      console.warn('Sheets sync rejected', result);
+    }
+  } catch(e) {
+    // Network failure — leave sync:'pending' so it retries next session
+    console.warn('Sheets sync error',e);
+  }
+}
+
+function gsTest() {
+  const url=document.getElementById('gs-url').value.trim();
+  if(!url){toast('Enter a URL first','error');return;}
+  toast('Testing connection…');
+  fetch(url+'?action=ping',{mode:'no-cors'})
+    .then(()=>toast('Connected! (CORS blocked preview — save & try a sync)'))
+    .catch(()=>toast('Could not reach URL','error'));
+}
+function gsSave() {
+  const url=document.getElementById('gs-url').value.trim();
+  if(!url){toast('Enter a URL','error');return;}
+  state.gsUrl=url; saveState();
+  closeModal('modal-gs');
+  toast('Google Sheets connected ✓ — pulling existing data…');
+  updateSyncBadge();
+  syncFromSheetOnLoad();
+}
+
+// ──────────────────────────────────────────────────────
+// DASHBOARD
+// ──────────────────────────────────────────────────────
+let chartTrack=null, chartProject=null;
+function inQuarter(d,q) {
+  if(q==='all')return true;
+  const m=d.getMonth();
+  if(q==='q1')return m>=3&&m<=5; if(q==='q2')return m>=6&&m<=8;
+  if(q==='q3')return m>=9&&m<=11; if(q==='q4')return m<=2;
+  return true;
+}
+
+function renderDashboard() {
+  const quarter=document.getElementById('dash-quarter')?.value||'all';
+  const monthFilter=document.getElementById('dash-month')?.value||'all';
+  const projectFilter=document.getElementById('dash-project')?.value||'all';
+  const projects=[...new Set(state.logs.map(l=>l.meta.project).filter(Boolean))];
+  const dashProject=document.getElementById('dash-project');
+  if(dashProject) {
+    const prev=dashProject.value;
+    dashProject.innerHTML='<option value="all">All projects</option>'+projects.map(p=>`<option value="${p}"${prev===p?' selected':''}>${p}</option>`).join('');
+  }
+  const filtered=state.logs.filter(l=>{
+    if(l.status==='open')return false;
+    const d=new Date(l.entryAt);
+    if(!inQuarter(d,quarter))return false;
+    if(monthFilter!=='all'&&d.getMonth()!==Number(monthFilter))return false;
+    if(projectFilter!=='all'&&l.meta.project!==projectFilter)return false;
+    return true;
+  });
+  const totals=filtered.reduce((a,l)=>({track:a.track+(l.trackCost||0),vehicle:a.vehicle+(l.vehicleCost||0),hours:a.hours+(l.billedHours||0)}),{track:0,vehicle:0,hours:0});
+  const engCount=state.users.filter(u=>u.role==='engineer'&&u.active).length;
+  // KPIs
+  document.getElementById('kpi-cards').innerHTML=`
+    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Track cost</div><div class="kpi-icon kpi-icon-primary"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div></div><div class="kpi-value">${fmtINR(totals.track)}</div></div>
+    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Vehicle hire</div><div class="kpi-icon kpi-icon-muted"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div></div><div class="kpi-value">${fmtINR(totals.vehicle)}</div></div>
+    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Billed hours</div><div class="kpi-icon kpi-icon-muted"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div><div class="kpi-value mono">${totals.hours.toFixed(1)}<span class="text-muted" style="font-size:0.8rem;margin-left:0.25rem">hr</span></div></div>
+    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Active engineers</div><div class="kpi-icon kpi-icon-muted"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div><div class="kpi-value mono">${engCount}</div></div>
+  `;
+  // Charts
+  const activeTracksForDash=TRACKS.filter(t=>!DISABLED_TRACKS.has(t));
+  const byTrack=activeTracksForDash.map(t=>{
+    const ss=filtered.filter(l=>l.track===t);
+    return {track:t,sessions:ss.length,cost:ss.reduce((a,l)=>a+(l.totalCost||0),0),hours:ss.reduce((a,l)=>a+(l.billedHours||0),0)};
+  });
+  const byProject=projects.map(p=>{const ls=filtered.filter(l=>l.meta.project===p);return{project:p,cost:ls.reduce((a,l)=>a+(l.totalCost||0),0),sessions:ls.length};}).sort((a,b)=>b.cost-a.cost).slice(0,6);
+  const chartColors=['#e8a825','#4ade80','#60a5fa','#c084fc','#f87171','#fb923c'];
+  if(chartTrack) chartTrack.destroy();
+  const ctx1=document.getElementById('chart-track').getContext('2d');
+  chartTrack=new Chart(ctx1,{type:'bar',data:{labels:activeTracksForDash,datasets:[{data:byTrack.map(d=>d.sessions),backgroundColor:byTrack.map(d=>d.sessions>0?'#e8a825':'#2a3147'),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw} sessions`}}},scales:{x:{ticks:{color:'#8892a4',font:{size:11}}},y:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#2e3650'}}},responsive:true,maintainAspectRatio:false}});
+  if(chartProject) chartProject.destroy();
+  const canvas2=document.getElementById('chart-project');
+  const placeholder=document.getElementById('chart-project-empty');
+  if(byProject.length>0){
+    canvas2.style.display='';
+    if(placeholder) placeholder.style.display='none';
+    const ctx2=canvas2.getContext('2d');
+    chartProject=new Chart(ctx2,{type:'doughnut',data:{labels:byProject.map(p=>p.project),datasets:[{data:byProject.map(p=>p.cost),backgroundColor:chartColors.slice(0,byProject.length),borderWidth:0}]},options:{plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtINR(ctx.raw)}`}}},responsive:true,maintainAspectRatio:false}});
+  } else {
+    canvas2.style.display='none';
+    if(placeholder) placeholder.style.display='';
+    else canvas2.insertAdjacentHTML('afterend','<p id="chart-project-empty" class="text-muted text-sm" style="padding:1rem">No completed sessions yet.</p>');
+  }
+  // Heatmap
+  const max=Math.max(1,...byTrack.map(d=>d.sessions));
+  document.getElementById('heatmap').innerHTML=byTrack.map(d=>{
+    const intensity=d.sessions/max;
+    const bg=`color-mix(in srgb,var(--primary) ${Math.round(intensity*80)}%,var(--muted))`;
+    const tc=intensity>0.4?'var(--primary-foreground)':'var(--muted-foreground)';
+    const fc=intensity>0.4?'var(--primary-foreground)':'var(--foreground)';
+    return `<div class="heatmap-cell" style="background:${bg}" title="${d.track} · ${d.sessions} sessions · ${fmtINR(d.cost)}">
+      <div style="font-size:0.625rem;font-weight:700;color:${tc}">${d.track}</div>
+      <div class="mono" style="font-size:0.875rem;font-weight:700;margin-top:0.25rem;color:${fc}">${d.sessions}</div>
+    </div>`;
+  }).join('');
+  // Recent
+  document.getElementById('dash-total').textContent=`${filtered.length} total`;
+  if(filtered.length===0){document.getElementById('dash-recent-table').innerHTML='<div class="empty-state">No completed sessions match these filters.</div>';return;}
+  document.getElementById('dash-recent-table').innerHTML=`<table>
+    <thead><tr><th>Date</th><th>Engineer</th><th>Track</th><th>Project</th><th>Vehicle</th><th class="text-right">Billed hr</th><th class="text-right">Total</th></tr></thead>
+    <tbody>${filtered.slice(0,10).map(l=>`<tr>
+      <td class="mono text-xs">${fmtDate(l.entryAt)}</td><td>${l.engineerName}</td>
+      <td><span class="mono font-semibold text-primary">${l.track}</span></td>
+      <td>${l.meta.project}</td><td class="text-xs">${l.meta.vehicleMake} ${l.meta.vehicleModel}</td>
+      <td class="text-right mono">${(l.billedHours||0).toFixed(2)}</td>
+      <td class="text-right mono font-semibold">${fmtINR(l.totalCost)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ──────────────────────────────────────────────────────
+// ADMIN LOGS
+// ──────────────────────────────────────────────────────
+function renderLogs() {
+  const engineers=state.users.filter(u=>u.role==='engineer');
+  const engEl=document.getElementById('log-filter-eng');
+  const prevEng=engEl?.value;
+  if(engEl) engEl.innerHTML='<option value="all">All engineers</option>'+engineers.map(u=>`<option value="${u.id}"${prevEng===u.id?' selected':''}>${u.name}</option>`).join('');
+  const trEl=document.getElementById('log-filter-track');
+  if(trEl&&trEl.options.length===1) trEl.innerHTML='<option value="all">All tracks</option>'+TRACKS.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const q=(document.getElementById('log-search')?.value||'').toLowerCase();
+  const eng=document.getElementById('log-filter-eng')?.value||'all';
+  const track=document.getElementById('log-filter-track')?.value||'all';
+  const cat=document.getElementById('log-filter-cat')?.value||'all';
+  const status=document.getElementById('log-filter-status')?.value||'all';
+  const filtered=state.logs.filter(l=>{
+    if(q&&!`${l.meta.project} ${l.meta.trNumber} ${l.meta.vehicleMake} ${l.meta.vehicleModel}`.toLowerCase().includes(q))return false;
+    if(eng!=='all'&&l.engineerId!==eng)return false;
+    if(track!=='all'&&l.track!==track)return false;
+    if(cat!=='all'&&l.meta.vehicleCategory!==cat)return false;
+    if(status!=='all'&&l.status!==status)return false;
+    return true;
+  });
+  const wrap=document.getElementById('logs-table-wrap');
+  if(filtered.length===0){wrap.innerHTML='<div class="empty-state">No logs match these filters.</div>';return;}
+  wrap.innerHTML=`<table>
+    <thead><tr>
+      <th>Date</th><th>Engineer</th><th>Track</th><th>TR</th><th>Project</th>
+      <th>Vehicle</th><th>Cat</th><th>In</th><th>Out</th>
+      <th class="text-right">Billed hr</th><th class="text-right">Total</th>
+      <th>Status</th><th>Sync</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${filtered.map(l=>`<tr>
+      <td class="mono text-xs">${fmtDate(l.entryAt)}</td>
+      <td>${l.engineerName}</td>
+      <td><span class="mono font-semibold text-primary">${l.track}</span></td>
+      <td class="mono text-xs">${l.meta.trNumber?`TR-${new Date(l.entryAt).getFullYear()}-${l.meta.trNumber}`:'—'}</td>
+      <td>${l.meta.project}</td>
+      <td class="text-xs">${l.meta.vehicleMake} ${l.meta.vehicleModel}</td>
+      <td class="text-xs">${l.meta.vehicleCategory}</td>
+      <td class="mono text-xs">${fmtTime(l.entryAt)}</td>
+      <td class="mono text-xs">${l.exitAt?fmtTime(l.exitAt):'—'}</td>
+      <td class="text-right mono">${(l.billedHours||0).toFixed(2)}</td>
+      <td class="text-right mono font-semibold">${fmtINR(l.totalCost)}</td>
+      <td>${statusBadge(l.status)}</td>
+      <td><span class="badge ${l.sync==='synced'?'badge-complete':'badge-open'}">${l.sync}</span></td>
+      <td>
+        <div class="flex gap-2">
+          ${l.status==='open'?`<button class="btn btn-ghost btn-sm" onclick="autoClose('${l.id}')">Auto-close</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="openEditLog('${l.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm text-destructive" onclick="deleteLog('${l.id}')">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function autoClose(logId) {
+  state.logs=state.logs.map(l=>{
+    if(l.id!==logId)return l;
+    const closed={...l,exitAt:l.entryAt+2*3600_000,odoEnd:l.meta.odoStart,status:'auto-closed',sync:'pending'};
+    return {...closed,...computeBilling(closed)};
+  });
+  saveState(); renderLogs(); updateSyncBadge(); toast('Auto-closed');
+}
+
+function deleteLog(logId) {
+  if(!confirm('Delete this log entry?'))return;
+  state.logs=state.logs.filter(l=>l.id!==logId);
+  saveState(); renderLogs(); updateSyncBadge(); toast('Deleted');
+}
+
+function openEditLog(logId) {
+  const log=state.logs.find(l=>l.id===logId);
+  if(!log)return;
+  document.getElementById('edit-log-id').value=logId;
+  const trackSel=document.getElementById('edit-track');
+  trackSel.innerHTML=TRACKS.map(t=>`<option value="${t}"${log.track===t?' selected':''}>${t}</option>`).join('');
+  document.getElementById('edit-project').value=log.meta.project;
+  document.getElementById('edit-time-in').value=dtLocal(log.entryAt);
+  document.getElementById('edit-time-out').value=log.exitAt?dtLocal(log.exitAt):'';
+  document.getElementById('edit-odo-end').value=log.odoEnd||'';
+  document.getElementById('edit-status').value=log.status;
+  openModal('modal-edit-log');
+}
+
+function saveEditLog() {
+  const logId=document.getElementById('edit-log-id').value;
+  const patch={
+    track:document.getElementById('edit-track').value,
+    entryAt:new Date(document.getElementById('edit-time-in').value).getTime(),
+    exitAt:document.getElementById('edit-time-out').value?new Date(document.getElementById('edit-time-out').value).getTime():undefined,
+    odoEnd:Number(document.getElementById('edit-odo-end').value)||undefined,
+    status:document.getElementById('edit-status').value,
+    meta:{project:document.getElementById('edit-project').value},
+  };
+  state.logs=state.logs.map(l=>{
+    if(l.id!==logId)return l;
+    const merged={...l,...patch,meta:{...l.meta,...patch.meta}};
+    if(merged.exitAt) Object.assign(merged,computeBilling(merged));
+    return merged;
+  });
+  saveState(); closeModal('modal-edit-log'); renderLogs(); toast('Log updated');
+}
+
+// ──────────────────────────────────────────────────────
+// EXPORT CSV
+// ──────────────────────────────────────────────────────
+function exportCSV() {
+  const headers=['Date','Engineer','Track','TR','Project','Make','Model','Cat','RFID','TimeIn','TimeOut','Hours','BilledHrs','TrackCost','VehicleCost','Total','Status'];
+  const rows=state.logs.map(l=>[
+    fmtDate(l.entryAt),l.engineerName,l.track,l.meta.trNumber,l.meta.project,
+    l.meta.vehicleMake,l.meta.vehicleModel,l.meta.vehicleCategory,l.meta.rfid,
+    fmtTime(l.entryAt),l.exitAt?fmtTime(l.exitAt):'',
+    l.exitAt?fmtHM(l.exitAt-l.entryAt):'',
+    (l.billedHours||0).toFixed(2),(l.trackCost||0).toFixed(0),(l.vehicleCost||0).toFixed(0),(l.totalCost||0).toFixed(0),l.status,
+  ]);
+  const csv=[headers,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`natrax-timesheet-${Date.now()}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Timesheet exported ✓');
+}
+
+// ──────────────────────────────────────────────────────
+// BILLING PAGE
+// ──────────────────────────────────────────────────────
+function renderBilling() {
+  const tbody=document.getElementById('billing-tbody');
+  tbody.innerHTML=TRACKS.map(t=>`<tr>
+    <td><span class="mono font-semibold text-primary">${t}</span></td>
+    <td><input type="number" step="0.25" class="mono" style="width:5rem;padding:0.25rem 0.5rem" value="${state.billing.minHours[t]['2W']}" onchange="updateBilling('${t}','2W',this.value)"></td>
+    <td><input type="number" step="0.25" class="mono" style="width:5rem;padding:0.25rem 0.5rem" value="${state.billing.minHours[t]['PCR']}" onchange="updateBilling('${t}','PCR',this.value)"></td>
+    <td><input type="number" step="0.25" class="mono" style="width:5rem;padding:0.25rem 0.5rem" value="${state.billing.minHours[t]['Commercial']}" onchange="updateBilling('${t}','Commercial',this.value)"></td>
+    <td><input type="number" class="mono" style="width:7rem;padding:0.25rem 0.5rem" value="${state.billing.rates[t].pcr}" onchange="updateBillingRate('${t}','pcr',this.value)"></td>
+    <td><input type="number" class="mono" style="width:7rem;padding:0.25rem 0.5rem" value="${state.billing.rates[t].commercial}" onchange="updateBillingRate('${t}','commercial',this.value)"></td>
+  </tr>`).join('');
+}
+
+function updateBilling(track, cat, val) { state.billing.minHours[track][cat]=Number(val); }
+function updateBillingRate(track, type, val) { state.billing.rates[track][type]=Number(val); }
+async function saveBilling() {
+  saveState();
+  toast('Saving and syncing to team sheet…');
+  const ok = await pushConfigToSheet();
+  toast(ok ? 'Billing config saved ✓ (synced to team sheet)' : 'Saved locally — sheet sync failed, will retry next load', ok ? 'success' : 'error');
+}
+
+// ──────────────────────────────────────────────────────
+// VEHICLES PAGE
+// ──────────────────────────────────────────────────────
+function renderVehicles() {
+  const wrap=document.getElementById('vehicles-table-wrap');
+  const DESC={'Hatchback Basic':'Entry-level cars','Hatchback Premium':'Compact premium','Compact SUV':'Small SUVs','Mid SUV / MUV':'Family SUVs','Large SUV':'Premium SUVs','EV':'Electric vehicles','Utility / LCV':'Pickup / load vehicles','Luxury':'BMW / Mercedes / Audi / JLR'};
+  const classes=Object.keys(state.vehicleClassRates);
+  wrap.innerHTML=`<table><thead><tr><th>Vehicle Class</th><th>Description</th><th class="text-right">Avg Rate (&#8377;/session)</th><th class="text-right">Actions</th></tr></thead><tbody>${classes.map(c=>`<tr><td class="font-semibold">${c}</td><td class="text-xs text-muted">${DESC[c]||''}</td><td class="text-right mono"><input type="number" class="mono" style="width:8rem;padding:0.25rem 0.5rem;text-align:right" value="${state.vehicleClassRates[c]}" onchange="updateVehicleClassRate('${c}',this.value)"></td><td class="text-right"><button class="btn btn-primary btn-sm" onclick="saveVehicleRates()">Save</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+function updateVehicleClassRate(cls, val) { state.vehicleClassRates[cls]=Number(val)||0; }
+function saveVehicleRates() { saveState(); pushConfigToSheet(); toast('Vehicle class rates saved ✓ (synced to team sheet)'); }
+
+// ──────────────────────────────────────────────────────
+// USERS PAGE
+// ──────────────────────────────────────────────────────
+function renderUsers() {
+  const wrap=document.getElementById('users-table-wrap');
+  wrap.innerHTML=`<table>
+    <thead><tr><th>Name</th><th>Role</th><th>Credential</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+    <tbody>${state.users.map(u=>`<tr>
+      <td class="font-semibold">${u.name}</td>
+      <td><span class="badge-role">${u.role}</span></td>
+      <td class="mono text-xs text-muted">${u.role==='engineer'?`PIN ${'•'.repeat(u.pin?.length||0)}`:'Password set'}</td>
+      <td><span class="${u.active?'badge-active':'badge-inactive'}">${u.active?'Active':'Inactive'}</span></td>
+      <td class="text-right">
+        <div class="flex justify-end gap-2">
+          <button class="btn btn-ghost btn-sm" onclick="resetCred('${u.id}','${u.role}')">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 1 0 0 14.14"/><path d="M22 2l-3 3m0 0l-3-3m3 3V8"/></svg>
+            Reset
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="toggleUser('${u.id}')">${u.active?'Deactivate':'Activate'}</button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function updateCredLabel() {
+  const role=document.getElementById('u-role').value;
+  document.getElementById('u-cred-label').textContent=role==='engineer'?'PIN (4–6 digits)':'Password';
+}
+
+function addUser() {
+  const name=document.getElementById('u-name').value.trim();
+  const role=document.getElementById('u-role').value;
+  const cred=document.getElementById('u-cred').value;
+  if(!name||!cred){toast('Enter name and credential','error');return;}
+  state.users.push({id:uid(),name,role,active:true,createdAt:Date.now(),...(role==='engineer'?{pin:cred}:{password:cred})});
+  document.getElementById('u-name').value='';
+  document.getElementById('u-cred').value='';
+  saveState(); renderUsers(); toast('User created — syncing to team sheet…'); pushConfigToSheet();
+}
+
+function toggleUser(id) {
+  state.users=state.users.map(u=>u.id===id?{...u,active:!u.active}:u);
+  saveState(); renderUsers(); pushConfigToSheet();
+}
+
+function resetCred(id, role) {
+  const val=prompt(role==='engineer'?'New PIN (4–6 digits):':'New password:');
+  if(!val)return;
+  state.users=state.users.map(u=>u.id===id?{...u,...(u.role==='engineer'?{pin:val}:{password:val})}:u);
+  saveState(); renderUsers(); toast('Credential reset'); pushConfigToSheet();
+}
+
+// ──────────────────────────────────────────────────────
+// AUTO-CLOSE (2hr) — run every 5 minutes
+// ──────────────────────────────────────────────────────
+function checkAutoClose() {
+  const now=Date.now();
+  let changed=false;
+  state.logs=state.logs.map(l=>{
+    if(l.status!=='open')return l;
+    if(now-l.entryAt>=2*3600_000) {
+      changed=true;
+      const closed={...l,exitAt:l.entryAt+2*3600_000,odoEnd:l.meta.odoStart,status:'auto-closed',sync:'pending'};
+      return {...closed,...computeBilling(closed)};
+    }
+    return l;
+  });
+  if(changed){saveState();renderPageContent(currentPage);toast('Open sessions auto-closed after 2 hours');}
+}
+setInterval(checkAutoClose,5*60*1000);
+
+// ──────────────────────────────────────────────────────
+// iOS / MOBILE BACKGROUND FLUSH
+// ──────────────────────────────────────────────────────
+// When iOS battery management suspends or kills the app, pagehide fires
+// first (more reliable than beforeunload on mobile). We use it to:
+//   1. Auto-close any open sessions (cap at 2hr same as checkAutoClose)
+//   2. Flush any pending syncs while we still have a network window
+// The keepalive flag asks the browser to let the fetch complete even after
+// the page is killed — supported on iOS 15.4+ Safari and all modern Chrome.
+function flushBeforeUnload() {
+  // Auto-close open sessions so they don't stay 'open' indefinitely
+  const now = Date.now();
+  let changed = false;
+  state.logs = state.logs.map(l => {
+    if (l.status !== 'open') return l;
+    changed = true;
+    const exitAt = Math.min(now, l.entryAt + 2*3600_000);
+    const closed = {...l, exitAt, odoEnd: l.meta.odoStart, status: 'auto-closed', sync: 'pending'};
+    return {...closed, ...computeBilling(closed)};
+  });
+  if (changed) saveState();
+
+  // Fire pending syncs with keepalive so iOS lets them complete post-kill
+  if (!state.gsUrl) return;
+  const toSync = state.logs.filter(l => l.sync === 'pending' && l.status !== 'open');
+  toSync.forEach(l => {
+    const row = [
+      l.id, l.sessionId,
+      fmtDate(l.entryAt), l.engineerName, l.track,
+      l.meta.trNumber, l.meta.project,
+      l.meta.vehicleMake, l.meta.vehicleModel,
+      l.meta.vehicleClass, l.meta.vehicleCategory, l.meta.rfid, l.meta.vehicleReg,
+      fmtTime(l.entryAt), l.exitAt ? fmtTime(l.exitAt) : '',
+      (l.actualHours||0).toFixed(2), (l.billedHours||0).toFixed(2),
+      l.meta.odoStart, l.odoEnd||'',
+      (l.trackCost||0).toFixed(0), (l.vehicleCost||0).toFixed(0), (l.totalCost||0).toFixed(0),
+      l.status,
+    ];
+    try {
+      navigator.sendBeacon(
+        state.gsUrl,
+        new Blob([JSON.stringify({action:'appendRow', sheetName:'Logs', row})],
+          {type:'text/plain;charset=utf-8'})
+      );
+    } catch(e) {
+      // sendBeacon fallback — keepalive fetch
+      fetch(state.gsUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({action:'appendRow', sheetName:'Logs', row}),
+        keepalive: true,
+      }).catch(()=>{});
+    }
+  });
+}
+window.addEventListener('pagehide', flushBeforeUnload);
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushBeforeUnload();
+});
+
+
+// Paste this into Apps Script in your Google Sheet:
+/*
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let configUpdatedAt = null;
+    if (data.action === 'appendRow') {
+      const sheet = ss.getSheetByName(data.sheetName) || ss.insertSheet(data.sheetName);
+      const idToFind = String(data.row[0]);
+      const lastRow = sheet.getLastRow();
+      let foundRow = -1;
+      if (lastRow >= 2) {
+        const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat().map(String);
+        const idx = ids.indexOf(idToFind);
+        if (idx !== -1) foundRow = idx + 2;
+      }
+      if (foundRow > 0) { sheet.getRange(foundRow, 1, 1, data.row.length).setValues([data.row]); }
+      else { sheet.appendRow(data.row); }
+    }
+    if (data.action === 'saveConfig') {
+      const sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
+      const now = new Date();
+      sheet.getRange('A1').setValue(JSON.stringify(data.config));
+      sheet.getRange('B1').setValue(now);
+      configUpdatedAt = now.getTime();
+    }
+    return ContentService.createTextOutput(JSON.stringify({ok:true,updatedAt:configUpdatedAt})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ok:false,error:err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+function doGet(e) {
+  if (e.parameter.action === 'ping') {
+    return ContentService.createTextOutput(JSON.stringify({ok:true,ping:'pong'})).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (e.parameter.action === 'getLogs') {
+    const sheetName = e.parameter.sheetName || 'Logs';
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return ContentService.createTextOutput(JSON.stringify({ok:true,rows:[]})).setMimeType(ContentService.MimeType.JSON);
+    const values = sheet.getDataRange().getValues();
+    const rows = values.slice(1).filter(r => r.some(c => c !== '' && c !== null));
+    return ContentService.createTextOutput(JSON.stringify({ok:true,rows:rows})).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (e.parameter.action === 'getConfig') {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Config');
+    if (!sheet) return ContentService.createTextOutput(JSON.stringify({ok:true,config:null})).setMimeType(ContentService.MimeType.JSON);
+    const raw = sheet.getRange('A1').getValue();
+    return ContentService.createTextOutput(JSON.stringify({ok:true,config:raw?JSON.parse(raw):null})).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput('NATRAX Logger API');
+}
+*/
+
+// ──────────────────────────────────────────────────────
+// PULL FROM SHEET (shared backend → local state)
+// ──────────────────────────────────────────────────────
+// Runs on every load so a brand-new device/browser session recovers
+// existing logs and the team's shared billing config from the Google
+// Sheet, instead of starting from blank defaults. Silently no-ops if
+// offline or unreachable — local state (and localStorage) still works.
+function parseSheetDateTime(dateVal, timeVal) {
+  // Apps Script getValues() returns Date objects for date cells,
+  // fractional numbers for time cells, or plain strings for text cells.
+  let d;
+  if (dateVal instanceof Date) {
+    d = new Date(dateVal.getTime());
+  } else if (typeof dateVal === 'number') {
+    d = new Date(dateVal); // epoch ms
+  } else {
+    if (!dateVal) return null;
+    d = new Date(dateVal);
+  }
+  if (isNaN(d.getTime())) return null;
+
+  if (timeVal !== undefined && timeVal !== null && timeVal !== '') {
+    if (typeof timeVal === 'number') {
+      // Fractional day (e.g. 0.652 = 15:40): multiply by 86400s
+      const totalSecs = Math.round(timeVal * 86400);
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      d.setHours(h, m, 0, 0);
+    } else if (timeVal instanceof Date) {
+      d.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
+    } else {
+      const [h, m] = String(timeVal).split(':').map(Number);
+      if (!isNaN(h)) d.setHours(h, isNaN(m) ? 0 : m, 0, 0);
+    }
+  }
+  return d.getTime();
+}
+
+function rowToLog(row) {
+  // Column order matches syncLogToSheets(): id, sessionId, date, engineer,
+  // track, trNumber, project, make, model, class, category, rfid, reg,
+  // timeIn, timeOut, actualHrs, billedHrs, odoStart, odoEnd, trackCost,
+  // vehicleCost, totalCost, status
+  const [id, sessionId, date, engineerName, track, trNumber, project,
+    vehicleMake, vehicleModel, vehicleClass, vehicleCategory, rfid, vehicleReg,
+    timeIn, timeOut, actualHours, billedHours, odoStart, odoEnd,
+    trackCost, vehicleCost, totalCost, status] = row;
+  if (!id) return null;
+  const entryAt = parseSheetDateTime(date, timeIn);
+  const exitAt = timeOut ? parseSheetDateTime(date, timeOut) : null;
+  return {
+    id: String(id), sessionId: String(sessionId || ''),
+    engineerName: String(engineerName || ''), track: String(track || ''),
+    meta: {
+      trNumber: trNumber || '', project: project || '',
+      vehicleMake: vehicleMake || '', vehicleModel: vehicleModel || '',
+      vehicleClass: vehicleClass || '', vehicleCategory: vehicleCategory || '',
+      rfid: rfid || '', vehicleReg: vehicleReg || '', odoStart: odoStart || '',
+    },
+    entryAt: entryAt || Date.now(), exitAt: exitAt || null,
+    odoEnd: odoEnd || '',
+    actualHours: Number(actualHours) || 0, billedHours: Number(billedHours) || 0,
+    trackCost: Number(trackCost) || 0, vehicleCost: Number(vehicleCost) || 0,
+    totalCost: Number(totalCost) || 0,
+    status: String(status || 'closed'), sync: 'synced',
+  };
+}
+
+async function pullLogsFromSheet() {
+  if (!state.gsUrl) return;
+  try {
+    const res = await fetch(`${state.gsUrl}?action=getLogs&sheetName=Logs`);
+    const data = await res.json();
+    if (!data || !data.ok || !Array.isArray(data.rows)) return;
+    const remoteLogs = data.rows.map(rowToLog).filter(Boolean);
+    // When duplicate IDs exist in the sheet, prefer the row with actual
+    // billing data (higher billedHours) over a zero/incomplete duplicate.
+    const remoteById = new Map();
+    remoteLogs.forEach(r => {
+      const existing = remoteById.get(r.id);
+      if (!existing || r.billedHours > existing.billedHours) remoteById.set(r.id, r);
+    });
+    const localById = new Map(state.logs.map(l => [l.id, l]));
+    // Sheet rows are the source of truth for anything already synced;
+    // keep local-only pending entries (not yet pushed) untouched.
+    remoteById.forEach((r, id) => localById.set(id, { ...localById.get(id), ...r }));
+    state.logs = Array.from(localById.values());
+    saveState();
+  } catch (e) { console.warn('Pull logs error', e); }
+}
+
+async function pullConfigFromSheet() {
+  if (!state.gsUrl) return;
+  try {
+    const res = await fetch(`${state.gsUrl}?action=getConfig`);
+    const data = await res.json();
+    if (!data || !data.ok || !data.config) return;
+    // Guard: never let a pull overwrite a local edit that hasn't been
+    // pushed to the sheet yet, or is newer than what's on the sheet.
+    if (state.billing.configUpdatedAt && data.updatedAt && data.updatedAt < state.billing.configUpdatedAt) return;
+    const cfg = data.config;
+    if (cfg.minHours) state.billing.minHours = cfg.minHours;
+    if (cfg.rates) state.billing.rates = cfg.rates;
+    if (cfg.vehicleClassRates) state.vehicleClassRates = cfg.vehicleClassRates;
+    if (cfg.users && Array.isArray(cfg.users) && cfg.users.length > 0) {
+      // Sheet is the master user list. Merge: sheet users win on conflict,
+      // but preserve any local-only users not yet pushed (e.g. just created
+      // before this pull resolved). Seed dummy IDs (u-eng1..3, u-mgr) are
+      // evicted once the sheet has a real user list.
+      const SEED_IDS = new Set(['u-eng1','u-eng2','u-eng3','u-mgr']);
+      const sheetById = new Map(cfg.users.map(u => [u.id, u]));
+      const localOnly = state.users.filter(u => !sheetById.has(u.id) && !SEED_IDS.has(u.id));
+      state.users = [...cfg.users, ...localOnly];
+    }
+    if (data.updatedAt) state.billing.configUpdatedAt = data.updatedAt;
+    saveState();
+  } catch (e) { console.warn('Pull config error', e); }
+}
+
+async function pushConfigToSheet() {
+  if (!state.gsUrl) return false;
+  try {
+    // text/plain avoids a CORS preflight that Apps Script web apps don't
+    // handle, so unlike no-cors we get a real, readable response back —
+    // letting us confirm the save actually landed before any pull runs.
+    const res = await fetch(state.gsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'saveConfig',
+        config: {
+          minHours: state.billing.minHours,
+          rates: state.billing.rates,
+          vehicleClassRates: state.vehicleClassRates,
+          users: state.users,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (data && data.ok) {
+      state.billing.configUpdatedAt = data.updatedAt || Date.now();
+      saveState();
+      return true;
+    }
+    return false;
+  } catch (e) { console.warn('Push config error', e); return false; }
+}
+
+async function syncFromSheetOnLoad() {
+  await Promise.all([pullConfigFromSheet(), pullLogsFromSheet()]);
+  if (typeof currentPage !== 'undefined' && currentPage) {
+    renderPageContent(currentPage);
+  }
+}
+
+// ──────────────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────────────
+loadState();
+syncFromSheetOnLoad();
+
+// Restore GS URL to modal if set
+document.getElementById('gs-url').value = state.gsUrl || '';
+
+// Show login
+showPage('login');
+</script>
+
+<!--
+═══════════════════════════════════════════════════════
+GOOGLE APPS SCRIPT — paste this into your Sheet's
+Extensions → Apps Script editor, then deploy as
+Web App (Execute as: Me, Who has access: Anyone)
+═══════════════════════════════════════════════════════
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (data.action === 'appendRow') {
+      const sheet = ss.getSheetByName(data.sheetName) || ss.insertSheet(data.sheetName);
+      sheet.appendRow(data.row);
+    }
+    if (data.action === 'saveConfig') {
+      const sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
+      sheet.getRange('A1').setValue(JSON.stringify(data.config));
+      sheet.getRange('B1').setValue(new Date());
+    }
+    return ContentService
+      .createTextOutput(JSON.stringify({ok: true}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ok: false, error: err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  if (e.parameter.action === 'ping') {
+    return ContentService
+      .createTextOutput(JSON.stringify({ok: true, ping: 'pong'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  if (e.parameter.action === 'getLogs') {
+    try {
+      const sheetName = e.parameter.sheetName || 'Logs';
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(sheetName);
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({ok: true, rows: []})).setMimeType(ContentService.MimeType.JSON);
+      }
+      const values = sheet.getDataRange().getValues();
+      const rows = values.slice(1).filter(r => r.some(c => c !== '' && c !== null));
+      return ContentService.createTextOutput(JSON.stringify({ok: true, rows: rows})).setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ok: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  if (e.parameter.action === 'getConfig') {
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName('Config');
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({ok: true, config: null})).setMimeType(ContentService.MimeType.JSON);
+      }
+      const raw = sheet.getRange('A1').getValue();
+      const config = raw ? JSON.parse(raw) : null;
+      return ContentService.createTextOutput(JSON.stringify({ok: true, config: config})).setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ok: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  return ContentService.createTextOutput('NATRAX Logger API');
+}
+
+═══════════════════════════════════════════════════════
+SHEET SETUP — create a tab called "Logs" with these
+headers in row 1 (columns A through V):
+═══════════════════════════════════════════════════════
+
+ID | SessionID | Date | Engineer | Track | TR_No | Project |
+VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg |
+TimeIn | TimeOut | ActualHrs | BilledHrs | OdoStart | OdoEnd |
+TrackCost | VehicleCost | TotalCost | Status
+
+A second tab called "Config" is auto-created by the script the
+first time billing settings are saved — no manual setup needed.
+
+═══════════════════════════════════════════════════════
+HOSTING ON GITHUB PAGES
+═══════════════════════════════════════════════════════
+1. Create a GitHub repo (public or private with Pages enabled)
+2. Drop this HTML file into the repo root as index.html
+3. Go to Settings → Pages → Source: main branch / root
+4. Your app will be live at https://yourusername.github.io/repo-name/
+
+The Google Sheet is the shared source of truth across all devices:
+logs and billing config are pulled from it on every load, and the
+app falls back to localStorage only while offline.
+-->
+</body>
+</html>
