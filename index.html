@@ -399,7 +399,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
           <input type="password" id="pwd-input" placeholder="Enter password" autocomplete="off">
         </div>
       </div>
-      <button class="btn btn-primary w-full" style="height:3rem;font-size:1rem;justify-content:center" onclick="doLogin()">Sign in</button>
+      <button id="login-btn" class="btn btn-primary w-full" style="height:3rem;font-size:1rem;justify-content:center" onclick="doLogin()">Sign in</button>
       <div style="margin-top:2rem;text-align:center;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted-foreground)">Operations Team · Internal use only</div>
     </div>
   </div>
@@ -979,7 +979,17 @@ function setLoginMode(m) {
   document.getElementById('login-admin-fields').classList.toggle('hidden', m==='engineer');
 }
 
-function doLogin() {
+async function doLogin() {
+  // Pull latest config from sheet before checking credentials.
+  // This is the gate that guarantees accounts, rates, and vehicle costs
+  // are always current before any session begins — regardless of device,
+  // browser, or how long since the last session on this device.
+  const loginBtn = document.getElementById('login-btn');
+  const origText = loginBtn ? loginBtn.textContent : '';
+  if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Syncing…'; }
+  await pullConfigFromSheet();
+  if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = origText; }
+
   if (loginMode==='engineer') {
     const pin = document.getElementById('pin-input').value;
     const u = state.users.find(x=>x.role==='engineer'&&x.active&&x.pin===pin);
@@ -1881,9 +1891,9 @@ async function pullConfigFromSheet() {
     const res = await fetch(`${state.gsUrl}?action=getConfig`);
     const data = await res.json();
     if (!data || !data.ok || !data.config) return;
-    // Guard: never let a pull overwrite a local edit that hasn't been
-    // pushed to the sheet yet, or is newer than what's on the sheet.
-    if (state.billing.configUpdatedAt && data.updatedAt && data.updatedAt < state.billing.configUpdatedAt) return;
+    // Sheet is always the master source of truth for config.
+    // No timestamp guard — we never want a stale local copy to silently
+    // block an update that the admin saved from another device.
     const cfg = data.config;
     if (cfg.minHours) state.billing.minHours = cfg.minHours;
     if (cfg.rates) state.billing.rates = cfg.rates;
