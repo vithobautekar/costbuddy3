@@ -255,7 +255,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
         <strong>Step 1 — Create Google Sheet</strong><br><br>
         Create a new Google Sheet. Add a tab named <code>Logs</code>.<br>
         In row 1, add these headers exactly:<br>
-        <code style="display:inline-block;margin-top:0.4rem;word-break:break-all">ID | SessionID | Date | Engineer | Track | TR_No | Project | VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg | TimeIn | TimeOut | ActualHrs | BilledHrs | OdoStart | OdoEnd | TrackCost | VehicleCost | TotalCost | Status</code>
+        <code style="display:inline-block;margin-top:0.4rem;word-break:break-all">ID | SessionID | Date | Engineer | Track | TR_No | Project | VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg | TimeIn | TimeOut | ActualHrs | BilledHrs | TrackCost | VehicleCost | TotalCost | Status</code>
       </div>
       <div class="gs-step">
         <strong>Step 2 — Deploy Apps Script Web App</strong><br><br>
@@ -289,12 +289,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
       <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
       End Session
     </div>
-    <p class="modal-desc" id="end-session-desc">Enter the closing odometer reading to finalise this session.</p>
-    <div class="infobox mb-4" id="odo-start-info">ODO Start: <span class="mono text-foreground" id="odo-start-display">—</span> km</div>
-    <div class="form-field">
-      <label for="odo-end-input">ODO End (km)</label>
-      <input type="number" id="odo-end-input" class="mono" placeholder="0" style="height:3rem;font-size:1.5rem;text-align:center">
-    </div>
+    <p class="modal-desc" id="end-session-desc">Finalise this session.</p>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-end-session')">Cancel</button>
       <button class="btn btn-primary" onclick="confirmEndSession()">Confirm & End Session</button>
@@ -314,7 +309,6 @@ textarea { resize: vertical; min-height: 2.5rem; }
       <div class="form-field"><label>Project</label><input type="text" id="edit-project"></div>
       <div class="form-field"><label>Time In</label><input type="datetime-local" id="edit-time-in"></div>
       <div class="form-field"><label>Time Out</label><input type="datetime-local" id="edit-time-out"></div>
-      <div class="form-field"><label>ODO End (km)</label><input type="number" id="edit-odo-end"></div>
       <div class="form-field"><label>Status</label>
         <select id="edit-status">
           <option value="open">open</option>
@@ -356,7 +350,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
         Tap a track. Log the lap.
         <span style="display:block;color:var(--primary)">Bill the minute.</span>
       </h1>
-      <p style="color:var(--muted-foreground);font-size:0.9rem">16 tracks. 12 engineers. One source of truth for every entry, exit, ODO reading and minute billed — even when the network drops on the high-speed loop.</p>
+      <p style="color:var(--muted-foreground);font-size:0.9rem">16 tracks. 12 engineers. One source of truth for every entry, exit and minute billed — even when the network drops on the high-speed loop.</p>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-top:1.5rem">
         <div class="card card-p"><div class="kpi-label">Tracks</div><div class="mono" style="font-weight:700;margin-top:0.25rem">T1–T16</div></div>
         <div class="card card-p"><div class="kpi-label">Roles</div><div class="mono" style="font-weight:700;margin-top:0.25rem">3</div></div>
@@ -486,7 +480,6 @@ textarea { resize: vertical; min-height: 2.5rem; }
         <div class="form-field"><label>RFID <span class="text-primary">*</span></label><input type="text" id="s-rfid" inputmode="numeric" placeholder="NATRAX tag" oninput="updateMetaField('rfid',this.value.replace(/\D/g,''))"></div>
         <div class="form-field"><label>Test Date</label><input type="date" id="s-date" oninput="updateMetaField('testDate',this.value)"></div>
         <div class="form-field"><label>Test Type</label><input type="text" id="s-type" placeholder="Durability / NVH" oninput="updateMetaField('testType',this.value)"></div>
-        <div class="form-field"><label>ODO Start (km) <span class="text-primary">*</span></label><input type="number" id="s-odo" class="mono" placeholder="0" oninput="updateMetaField('odoStart',Number(this.value))"></div>
         <div class="form-field span2"><label>Remarks</label><textarea id="s-remarks" rows="1" placeholder="Optional notes" oninput="updateMetaField('remarks',this.value)"></textarea></div>
       </div>
       <hr class="divider">
@@ -911,13 +904,17 @@ function renderTopbar(page) {
 }
 
 function updateSyncBadge() {
-  const pending = state.logs.filter(l=>l.sync==='pending'&&l.status!=='open').length;
+  const pending = state.logs.filter(l=>l.sync==='pending').length;
+  const configPending = !!state.pendingConfigPush;
   const badge = document.getElementById('sync-badge');
   const text = document.getElementById('sync-text');
   const connected = !!state.gsUrl;
   if (!connected) {
     badge.className='sync-badge sync-offline';
     text.textContent='Sheets: Not linked';
+  } else if (configPending) {
+    badge.className='sync-badge sync-offline';
+    text.textContent='Config not synced — retrying';
   } else if (pending>0) {
     badge.className='sync-badge sync-pending';
     text.textContent=`Pending · ${pending}`;
@@ -1036,7 +1033,7 @@ function emptyMeta(name) {
     trNumber:'', project:'', vehicleMake:'', vehicleModel:'',
     vehicleClass:'Hatchback Basic', vehicleCategory:'PCR', vehicleReg:'', rfid:'',
     testDate: new Date().toISOString().slice(0,10),
-    testType:'', testEngineer:name, odoStart:0, remarks:'',
+    testType:'', testEngineer:name, remarks:'',
   };
 }
 
@@ -1073,13 +1070,12 @@ function renderLogPage() {
   document.getElementById('s-reg').value = sessionMeta.vehicleReg;
   document.getElementById('s-rfid').value = sessionMeta.rfid;
   document.getElementById('s-type').value = sessionMeta.testType;
-  document.getElementById('s-odo').value = sessionMeta.odoStart||'';
   document.getElementById('s-remarks').value = sessionMeta.remarks;
 }
 
 // Disable/enable session form inputs
 function setFormDisabled(disabled) {
-  ['s-tr','s-project','s-make','s-model','s-class','s-cat','s-reg','s-rfid','s-date','s-type','s-odo','s-remarks'].forEach(id=>{
+  ['s-tr','s-project','s-make','s-model','s-class','s-cat','s-reg','s-rfid','s-date','s-type','s-remarks'].forEach(id=>{
     document.getElementById(id).disabled = disabled;
   });
 }
@@ -1147,24 +1143,39 @@ function startLog(engineer, track, meta, sid) {
   renderTrackGrid();
   renderTodayLogs();
   updateSessionStatus();
+  updateSyncBadge();
+  // Push the entry to the sheet immediately — don't wait for exit or
+  // session-end. If the app is killed seconds later, the entry is
+  // already on its way (or will be picked up by the periodic/visibility
+  // retries below) instead of being lost with the in-memory session.
+  syncLogToSheets(newLog);
   return logId;
 }
 
 function closeLog(logId) {
-  state.logs=state.logs.map(l=>l.id===logId?{...l,exitAt:Date.now(),status:'complete',sync:'pending'}:l);
+  let closedLog=null;
+  state.logs=state.logs.map(l=>{
+    if(l.id!==logId)return l;
+    closedLog={...l,exitAt:Date.now(),status:'complete',sync:'pending'};
+    return closedLog;
+  });
   saveState();
   clearInterval(tileTimerInterval);
   renderTrackGrid();
   renderTodayLogs();
   updateSessionStatus();
   updateSyncBadge();
+  // Push the exit immediately too — same reasoning as entry above.
+  // Final session-level billing (multi-track vehicle-cost split) still
+  // gets pushed again at endSession(), which simply upserts over this row.
+  if(closedLog) syncLogToSheets(closedLog);
 }
 
 function startSession() {
   const user = currentUser();
   if(!user) return;
   const m = sessionMeta;
-  if(!m.trNumber||!m.project||!m.vehicleClass||!m.rfid||!m.odoStart) {
+  if(!m.trNumber||!m.project||!m.vehicleClass||!m.rfid) {
     toast('Complete all required fields','error'); return;
   }
   sessionMeta.trNumber = String(m.trNumber).padStart(2,'0');
@@ -1194,16 +1205,12 @@ function updateSessionStatus() {
 function openEndSession() {
   const sLogs=sessionId?state.logs.filter(l=>l.sessionId===sessionId):[];
   if(sLogs.length===0){toast('Log at least one track first','error');return;}
-  document.getElementById('odo-start-display').textContent=sessionMeta?.odoStart||0;
-  document.getElementById('end-session-desc').textContent=`Enter the closing odometer reading to finalise this session (${sLogs.length} track${sLogs.length===1?'':'s'}).`;
-  document.getElementById('odo-end-input').value='';
+  document.getElementById('end-session-desc').textContent=`Finalise this session (${sLogs.length} track${sLogs.length===1?'':'s'}).`;
   openModal('modal-end-session');
 }
 
 function confirmEndSession() {
-  const v=Number(document.getElementById('odo-end-input').value);
-  if(!v||v<(sessionMeta?.odoStart||0)){toast('ODO End must be greater than ODO Start','error');return;}
-  endSession(sessionId,v);
+  endSession(sessionId);
   closeModal('modal-end-session');
   toast('Session ended');
   sessionStarted=false; sessionId=null; sessionMeta=emptyMeta(currentUser()?.name||'');
@@ -1212,25 +1219,24 @@ function confirmEndSession() {
   setFormDisabled(false);
   renderLogPage();
   // Clear form
-  ['s-tr','s-project','s-make','s-model','s-reg','s-rfid','s-type','s-odo','s-remarks'].forEach(id=>{document.getElementById(id).value='';});
+  ['s-tr','s-project','s-make','s-model','s-reg','s-rfid','s-type','s-remarks'].forEach(id=>{document.getElementById(id).value='';});
   document.getElementById('s-cat').value='PCR';
   document.getElementById('s-date').value=new Date().toISOString().slice(0,10);
 }
 
-function endSession(sid, odoEnd) {
+function endSession(sid) {
   const sLogs=state.logs.filter(l=>l.sessionId===sid).sort((a,b)=>a.entryAt-b.entryAt);
   const firstId=sLogs[0]?.id;
   state.logs=state.logs.map(l=>{
     if(l.sessionId!==sid)return l;
-    const closed={...l,exitAt:l.exitAt||Date.now(),odoEnd,status:l.status==='open'?'complete':l.status,sync:'pending'};
+    const closed={...l,exitAt:l.exitAt||Date.now(),status:l.status==='open'?'complete':l.status,sync:'pending'};
     const b=computeBilling(closed);
     if(l.id!==firstId){b.vehicleCost=0;b.totalCost=b.trackCost;}
     return {...closed,...b};
   });
   saveState(); updateSyncBadge();
-  // Auto sync to Google Sheets
-  const toSync=state.logs.filter(l=>l.sync==='pending'&&l.status!=='open');
-  toSync.forEach(l=>syncLogToSheets(l));
+  // Auto sync to Google Sheets — instant, regardless of status
+  flushPendingLogSyncs();
 }
 
 let todayLogIntervals=[];
@@ -1276,10 +1282,9 @@ function statusBadge(status) {
 }
 
 function syncNow() {
-  const toSync=state.logs.filter(l=>l.sync==='pending'&&l.status!=='open');
-  if(toSync.length===0){toast('Nothing pending to sync');return;}
-  toSync.forEach(l=>syncLogToSheets(l));
-  toast(`Syncing ${toSync.length} log(s)…`);
+  const n=flushPendingLogSyncs();
+  if(n===0){toast('Nothing pending to sync');return;}
+  toast(`Syncing ${n} log(s)…`);
 }
 
 // ──────────────────────────────────────────────────────
@@ -1308,7 +1313,6 @@ async function syncLogToSheets(log) {
     l.meta.vehicleClass, l.meta.vehicleCategory, l.meta.rfid, l.meta.vehicleReg,
     fmtTime(l.entryAt), l.exitAt?fmtTime(l.exitAt):'',
     (l.actualHours||0).toFixed(2), (l.billedHours||0).toFixed(2),
-    l.meta.odoStart, l.odoEnd||'',
     (l.trackCost||0).toFixed(0), (l.vehicleCost||0).toFixed(0), (l.totalCost||0).toFixed(0),
     l.status,
   ];
@@ -1328,9 +1332,21 @@ async function syncLogToSheets(log) {
       console.warn('Sheets sync rejected', result);
     }
   } catch(e) {
-    // Network failure — leave sync:'pending' so it retries next session
+    // Network failure — leave sync:'pending' so it retries automatically
+    // (periodic flush, next entry/exit, visibility-change, or reconnect).
     console.warn('Sheets sync error',e);
   }
+}
+
+// Retries every log still marked sync:'pending' — regardless of open/
+// closed status, so a track ENTRY that failed to reach the sheet gets
+// retried just as eagerly as an exit. Safe to call often: syncLogToSheets
+// no-ops cleanly if there's nothing new to say, and the sheet upserts by
+// ID so re-sending an already-synced row is harmless.
+function flushPendingLogSyncs() {
+  const toSync = state.logs.filter(l => l.sync === 'pending');
+  toSync.forEach(l => syncLogToSheets(l));
+  return toSync.length;
 }
 
 function gsTest() {
@@ -1503,10 +1519,10 @@ function renderLogs() {
 function autoClose(logId) {
   state.logs=state.logs.map(l=>{
     if(l.id!==logId)return l;
-    const closed={...l,exitAt:l.entryAt+2*3600_000,odoEnd:l.meta.odoStart,status:'auto-closed',sync:'pending'};
+    const closed={...l,exitAt:l.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
     return {...closed,...computeBilling(closed)};
   });
-  saveState(); renderLogs(); updateSyncBadge(); toast('Auto-closed');
+  saveState(); renderLogs(); updateSyncBadge(); flushPendingLogSyncs(); toast('Auto-closed');
 }
 
 function deleteLog(logId) {
@@ -1524,7 +1540,6 @@ function openEditLog(logId) {
   document.getElementById('edit-project').value=log.meta.project;
   document.getElementById('edit-time-in').value=dtLocal(log.entryAt);
   document.getElementById('edit-time-out').value=log.exitAt?dtLocal(log.exitAt):'';
-  document.getElementById('edit-odo-end').value=log.odoEnd||'';
   document.getElementById('edit-status').value=log.status;
   openModal('modal-edit-log');
 }
@@ -1535,17 +1550,16 @@ function saveEditLog() {
     track:document.getElementById('edit-track').value,
     entryAt:new Date(document.getElementById('edit-time-in').value).getTime(),
     exitAt:document.getElementById('edit-time-out').value?new Date(document.getElementById('edit-time-out').value).getTime():undefined,
-    odoEnd:Number(document.getElementById('edit-odo-end').value)||undefined,
     status:document.getElementById('edit-status').value,
     meta:{project:document.getElementById('edit-project').value},
   };
   state.logs=state.logs.map(l=>{
     if(l.id!==logId)return l;
-    const merged={...l,...patch,meta:{...l.meta,...patch.meta}};
+    const merged={...l,...patch,meta:{...l.meta,...patch.meta},sync:'pending'};
     if(merged.exitAt) Object.assign(merged,computeBilling(merged));
     return merged;
   });
-  saveState(); closeModal('modal-edit-log'); renderLogs(); toast('Log updated');
+  saveState(); closeModal('modal-edit-log'); renderLogs(); flushPendingLogSyncs(); toast('Log updated');
 }
 
 // ──────────────────────────────────────────────────────
@@ -1603,7 +1617,13 @@ function renderVehicles() {
 }
 
 function updateVehicleClassRate(cls, val) { state.vehicleClassRates[cls]=Number(val)||0; }
-function saveVehicleRates() { saveState(); pushConfigToSheet(); toast('Vehicle class rates saved ✓ (synced to team sheet)'); }
+async function saveVehicleRates() {
+  saveState();
+  toast('Saving and syncing to team sheet…');
+  const ok = await pushConfigToSheet();
+  updateSyncBadge();
+  toast(ok ? 'Vehicle class rates saved ✓ (synced to team sheet)' : 'Saved locally — sheet sync failed, will retry automatically', ok ? 'success' : 'error');
+}
 
 // ──────────────────────────────────────────────────────
 // USERS PAGE
@@ -1635,7 +1655,7 @@ function updateCredLabel() {
   document.getElementById('u-cred-label').textContent=role==='engineer'?'PIN (4–6 digits)':'Password';
 }
 
-function addUser() {
+async function addUser() {
   const name=document.getElementById('u-name').value.trim();
   const role=document.getElementById('u-role').value;
   const cred=document.getElementById('u-cred').value;
@@ -1643,19 +1663,29 @@ function addUser() {
   state.users.push({id:uid(),name,role,active:true,createdAt:Date.now(),...(role==='engineer'?{pin:cred}:{password:cred})});
   document.getElementById('u-name').value='';
   document.getElementById('u-cred').value='';
-  saveState(); renderUsers(); toast('User created — syncing to team sheet…'); pushConfigToSheet();
+  saveState(); renderUsers();
+  toast('User created — syncing to team sheet…');
+  const ok = await pushConfigToSheet();
+  updateSyncBadge();
+  toast(ok ? 'User synced to team sheet ✓' : 'User saved locally — sheet sync failed, will retry automatically', ok ? 'success' : 'error');
 }
 
-function toggleUser(id) {
+async function toggleUser(id) {
   state.users=state.users.map(u=>u.id===id?{...u,active:!u.active}:u);
-  saveState(); renderUsers(); pushConfigToSheet();
+  saveState(); renderUsers();
+  const ok = await pushConfigToSheet();
+  updateSyncBadge();
+  if (!ok) toast('Saved locally — sheet sync failed, will retry automatically', 'error');
 }
 
-function resetCred(id, role) {
+async function resetCred(id, role) {
   const val=prompt(role==='engineer'?'New PIN (4–6 digits):':'New password:');
   if(!val)return;
   state.users=state.users.map(u=>u.id===id?{...u,...(u.role==='engineer'?{pin:val}:{password:val})}:u);
-  saveState(); renderUsers(); toast('Credential reset'); pushConfigToSheet();
+  saveState(); renderUsers();
+  const ok = await pushConfigToSheet();
+  updateSyncBadge();
+  toast(ok ? 'Credential reset ✓ (synced to team sheet)' : 'Reset locally — sheet sync failed, will retry automatically', ok ? 'success' : 'error');
 }
 
 // ──────────────────────────────────────────────────────
@@ -1668,24 +1698,50 @@ function checkAutoClose() {
     if(l.status!=='open')return l;
     if(now-l.entryAt>=2*3600_000) {
       changed=true;
-      const closed={...l,exitAt:l.entryAt+2*3600_000,odoEnd:l.meta.odoStart,status:'auto-closed',sync:'pending'};
+      const closed={...l,exitAt:l.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
       return {...closed,...computeBilling(closed)};
     }
     return l;
   });
-  if(changed){saveState();renderPageContent(currentPage);toast('Open sessions auto-closed after 2 hours');}
+  if(changed){saveState();renderPageContent(currentPage);updateSyncBadge();flushPendingLogSyncs();toast('Open sessions auto-closed after 2 hours');}
 }
 setInterval(checkAutoClose,5*60*1000);
 
 // ──────────────────────────────────────────────────────
-// iOS / MOBILE BACKGROUND FLUSH
+// BACKGROUND-SAFE SYNC
 // ──────────────────────────────────────────────────────
-// When iOS battery management suspends or kills the app, pagehide fires
-// first (more reliable than beforeunload on mobile). We use it to:
-//   1. Auto-close any open sessions (cap at 2hr same as checkAutoClose)
-//   2. Flush any pending syncs while we still have a network window
-// The keepalive flag asks the browser to let the fetch complete even after
-// the page is killed — supported on iOS 15.4+ Safari and all modern Chrome.
+// Track entry/exit are already pushed the instant they happen (see
+// startLog/closeLog above), so there is normally nothing left to flush
+// by the time the app backgrounds. These are the safety nets for the
+// cases where that instant push failed (offline, cold Apps Script,
+// flaky signal on the high-speed loop) or the app never got a chance
+// to run its JS again (killed outright).
+
+// 1. Periodic retry while the app stays open/foregrounded — catches
+//    anything an instant push failed to land, without waiting for the
+//    user to background the app or manually hit "Sync now".
+setInterval(() => { if (state.gsUrl) flushPendingLogSyncs(); }, 30*1000);
+
+// 2. Reconnect — the moment the device gets network back, retry.
+window.addEventListener('online', () => { if (state.gsUrl) flushPendingLogSyncs(); });
+
+// 3. Reopen/foreground — re-check on every return to the app. This is
+//    the "refresh on reopening" behaviour: retry anything still pending
+//    locally, then re-pull config/logs so the app reflects the latest
+//    shared state even if it sat backgrounded/killed for a while.
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    flushPendingLogSyncs();
+    syncFromSheetOnLoad();
+  } else {
+    flushBeforeUnload();
+  }
+});
+
+// 4. pagehide (iOS's reliable "about to be killed/backgrounded" signal,
+//    fires before beforeunload on mobile Safari). Auto-close any open
+//    session at the 2hr cap and fire remaining pending syncs with
+//    sendBeacon/keepalive so iOS lets them complete after the page dies.
 function flushBeforeUnload() {
   // Auto-close open sessions so they don't stay 'open' indefinitely
   const now = Date.now();
@@ -1694,14 +1750,15 @@ function flushBeforeUnload() {
     if (l.status !== 'open') return l;
     changed = true;
     const exitAt = Math.min(now, l.entryAt + 2*3600_000);
-    const closed = {...l, exitAt, odoEnd: l.meta.odoStart, status: 'auto-closed', sync: 'pending'};
+    const closed = {...l, exitAt, status: 'auto-closed', sync: 'pending'};
     return {...closed, ...computeBilling(closed)};
   });
   if (changed) saveState();
 
-  // Fire pending syncs with keepalive so iOS lets them complete post-kill
+  // Fire every pending sync with keepalive — entries as well as exits —
+  // so nothing waits until the app is reopened to reach the sheet.
   if (!state.gsUrl) return;
-  const toSync = state.logs.filter(l => l.sync === 'pending' && l.status !== 'open');
+  const toSync = state.logs.filter(l => l.sync === 'pending');
   toSync.forEach(l => {
     const row = [
       l.id, l.sessionId,
@@ -1711,7 +1768,6 @@ function flushBeforeUnload() {
       l.meta.vehicleClass, l.meta.vehicleCategory, l.meta.rfid, l.meta.vehicleReg,
       fmtTime(l.entryAt), l.exitAt ? fmtTime(l.exitAt) : '',
       (l.actualHours||0).toFixed(2), (l.billedHours||0).toFixed(2),
-      l.meta.odoStart, l.odoEnd||'',
       (l.trackCost||0).toFixed(0), (l.vehicleCost||0).toFixed(0), (l.totalCost||0).toFixed(0),
       l.status,
     ];
@@ -1733,9 +1789,6 @@ function flushBeforeUnload() {
   });
 }
 window.addEventListener('pagehide', flushBeforeUnload);
-window.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') flushBeforeUnload();
-});
 
 
 // Paste this into Apps Script in your Google Sheet:
@@ -1835,11 +1888,11 @@ function parseSheetDateTime(dateVal, timeVal) {
 function rowToLog(row) {
   // Column order matches syncLogToSheets(): id, sessionId, date, engineer,
   // track, trNumber, project, make, model, class, category, rfid, reg,
-  // timeIn, timeOut, actualHrs, billedHrs, odoStart, odoEnd, trackCost,
-  // vehicleCost, totalCost, status
+  // timeIn, timeOut, actualHrs, billedHrs, trackCost, vehicleCost,
+  // totalCost, status  (no odometer columns — see migration note below)
   const [id, sessionId, date, engineerName, track, trNumber, project,
     vehicleMake, vehicleModel, vehicleClass, vehicleCategory, rfid, vehicleReg,
-    timeIn, timeOut, actualHours, billedHours, odoStart, odoEnd,
+    timeIn, timeOut, actualHours, billedHours,
     trackCost, vehicleCost, totalCost, status] = row;
   if (!id) return null;
   const entryAt = parseSheetDateTime(date, timeIn);
@@ -1851,10 +1904,9 @@ function rowToLog(row) {
       trNumber: trNumber || '', project: project || '',
       vehicleMake: vehicleMake || '', vehicleModel: vehicleModel || '',
       vehicleClass: vehicleClass || '', vehicleCategory: vehicleCategory || '',
-      rfid: rfid || '', vehicleReg: vehicleReg || '', odoStart: odoStart || '',
+      rfid: rfid || '', vehicleReg: vehicleReg || '',
     },
     entryAt: entryAt || Date.now(), exitAt: exitAt || null,
-    odoEnd: odoEnd || '',
     actualHours: Number(actualHours) || 0, billedHours: Number(billedHours) || 0,
     trackCost: Number(trackCost) || 0, vehicleCost: Number(vehicleCost) || 0,
     totalCost: Number(totalCost) || 0,
@@ -1887,6 +1939,12 @@ async function pullLogsFromSheet() {
 
 async function pullConfigFromSheet() {
   if (!state.gsUrl) return;
+  // If a local config edit is still waiting to reach the sheet, do NOT
+  // pull — that would overwrite the newer local edit with the older
+  // remote copy, which is exactly what made admin changes look like
+  // they "reset to default". retryPendingConfigPush() (run earlier in
+  // the load sequence) is responsible for clearing this flag first.
+  if (state.pendingConfigPush) return;
   try {
     const res = await fetch(`${state.gsUrl}?action=getConfig`);
     const data = await res.json();
@@ -1913,8 +1971,19 @@ async function pullConfigFromSheet() {
   } catch (e) { console.warn('Pull config error', e); }
 }
 
+// Builds the config payload from current local state.
+function buildConfigPayload() {
+  return {
+    minHours: state.billing.minHours,
+    rates: state.billing.rates,
+    vehicleClassRates: state.vehicleClassRates,
+    users: state.users,
+  };
+}
+
 async function pushConfigToSheet() {
   if (!state.gsUrl) return false;
+  const payload = buildConfigPayload();
   try {
     // text/plain avoids a CORS preflight that Apps Script web apps don't
     // handle, so unlike no-cors we get a real, readable response back —
@@ -1922,31 +1991,71 @@ async function pushConfigToSheet() {
     const res = await fetch(state.gsUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'saveConfig',
-        config: {
-          minHours: state.billing.minHours,
-          rates: state.billing.rates,
-          vehicleClassRates: state.vehicleClassRates,
-          users: state.users,
-        },
-      }),
+      body: JSON.stringify({ action: 'saveConfig', config: payload }),
     });
     const data = await res.json();
     if (data && data.ok) {
       state.billing.configUpdatedAt = data.updatedAt || Date.now();
+      // Success — clear any earlier failed-push marker so it's never
+      // resent (and never lets a stale pull look "reset to default").
+      state.pendingConfigPush = null;
+      saveState();
+      return true;
+    }
+    // Apps Script responded but reported failure (e.g. bad deployment,
+    // script error) — keep the change queued for retry.
+    state.pendingConfigPush = payload;
+    saveState();
+    return false;
+  } catch (e) {
+    console.warn('Push config error', e);
+    // Network/CORS/offline failure. Previously this change was simply
+    // lost: on the next load, pullConfigFromSheet() would overwrite
+    // local state with the OLD sheet data, which is exactly the
+    // "updates don't stick / reverts to default" bug. Now we remember
+    // the change and retry it before ever trusting a pull again.
+    state.pendingConfigPush = payload;
+    saveState();
+    return false;
+  }
+}
+
+// Retries a previously-failed config push. Called on every load, before
+// pulling from the sheet, so an admin's edit can never be silently wiped
+// out by a stale pull just because their last save failed to reach
+// Google (bad wifi, GAS cold start, temporary outage, etc).
+async function retryPendingConfigPush() {
+  if (!state.gsUrl || !state.pendingConfigPush) return true; // nothing to retry
+  try {
+    const res = await fetch(state.gsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'saveConfig', config: state.pendingConfigPush }),
+    });
+    const data = await res.json();
+    if (data && data.ok) {
+      state.billing.configUpdatedAt = data.updatedAt || Date.now();
+      state.pendingConfigPush = null;
       saveState();
       return true;
     }
     return false;
-  } catch (e) { console.warn('Push config error', e); return false; }
+  } catch (e) {
+    console.warn('Retry pending config push failed', e);
+    return false;
+  }
 }
 
 async function syncFromSheetOnLoad() {
+  // Retry any config edit that failed to save last time BEFORE pulling —
+  // otherwise the pull below would silently overwrite it with the old
+  // sheet data on this "new session".
+  await retryPendingConfigPush();
   await Promise.all([pullConfigFromSheet(), pullLogsFromSheet()]);
   if (typeof currentPage !== 'undefined' && currentPage) {
     renderPageContent(currentPage);
   }
+  updateSyncBadge();
 }
 
 // ──────────────────────────────────────────────────────
@@ -1969,76 +2078,30 @@ Extensions → Apps Script editor, then deploy as
 Web App (Execute as: Me, Who has access: Anyone)
 ═══════════════════════════════════════════════════════
 
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (data.action === 'appendRow') {
-      const sheet = ss.getSheetByName(data.sheetName) || ss.insertSheet(data.sheetName);
-      sheet.appendRow(data.row);
-    }
-    if (data.action === 'saveConfig') {
-      const sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
-      sheet.getRange('A1').setValue(JSON.stringify(data.config));
-      sheet.getRange('B1').setValue(new Date());
-    }
-    return ContentService
-      .createTextOutput(JSON.stringify({ok: true}))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ok: false, error: err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function doGet(e) {
-  if (e.parameter.action === 'ping') {
-    return ContentService
-      .createTextOutput(JSON.stringify({ok: true, ping: 'pong'}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  if (e.parameter.action === 'getLogs') {
-    try {
-      const sheetName = e.parameter.sheetName || 'Logs';
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheet = ss.getSheetByName(sheetName);
-      if (!sheet) {
-        return ContentService.createTextOutput(JSON.stringify({ok: true, rows: []})).setMimeType(ContentService.MimeType.JSON);
-      }
-      const values = sheet.getDataRange().getValues();
-      const rows = values.slice(1).filter(r => r.some(c => c !== '' && c !== null));
-      return ContentService.createTextOutput(JSON.stringify({ok: true, rows: rows})).setMimeType(ContentService.MimeType.JSON);
-    } catch (err) {
-      return ContentService.createTextOutput(JSON.stringify({ok: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-  if (e.parameter.action === 'getConfig') {
-    try {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheet = ss.getSheetByName('Config');
-      if (!sheet) {
-        return ContentService.createTextOutput(JSON.stringify({ok: true, config: null})).setMimeType(ContentService.MimeType.JSON);
-      }
-      const raw = sheet.getRange('A1').getValue();
-      const config = raw ? JSON.parse(raw) : null;
-      return ContentService.createTextOutput(JSON.stringify({ok: true, config: config})).setMimeType(ContentService.MimeType.JSON);
-    } catch (err) {
-      return ContentService.createTextOutput(JSON.stringify({ok: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-  return ContentService.createTextOutput('NATRAX Logger API');
-}
+NOTE: this file used to contain a SECOND, older copy of the Apps Script
+code right here. It was missing row-upsert (dedup by ID) and config
+updatedAt support, and had drifted out of sync with the real, correct
+copy earlier in this file (search for "Paste this into Apps Script").
+Two copies drifting apart is exactly how bugs like "sometimes the sheet
+has old logic" happen — so it has been deleted. There is now exactly
+ONE copy of the Apps Script code in this repo: see gappscript.gs
+(provided alongside this file) or the commented block above the
+"PULL FROM SHEET" section in the <script> tag. Always copy that one.
 
 ═══════════════════════════════════════════════════════
 SHEET SETUP — create a tab called "Logs" with these
-headers in row 1 (columns A through V):
+headers in row 1 (columns A through U):
 ═══════════════════════════════════════════════════════
 
 ID | SessionID | Date | Engineer | Track | TR_No | Project |
 VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg |
-TimeIn | TimeOut | ActualHrs | BilledHrs | OdoStart | OdoEnd |
+TimeIn | TimeOut | ActualHrs | BilledHrs |
 TrackCost | VehicleCost | TotalCost | Status
+
+(No odometer columns — odometer tracking has been removed. If you're
+migrating an existing sheet that still has OdoStart/OdoEnd columns,
+delete those two columns entirely so TrackCost lines back up with the
+app's column order, rather than leaving them blank in place.)
 
 A second tab called "Config" is auto-created by the script the
 first time billing settings are saved — no manual setup needed.
