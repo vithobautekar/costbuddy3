@@ -830,6 +830,39 @@ function dtLocal(ts) {
 }
 
 // ──────────────────────────────────────────────────────
+// VEHICLE RENTAL DEDUPE — charge once per vehicle per day
+// ──────────────────────────────────────────────────────
+// Identifies the physical vehicle for dedup purposes: registration number
+// is the most reliable, RFID next, and make+model+class as a last resort
+// for entries missing both (so at least identical entries still dedupe).
+function vehicleKey(meta) {
+  const reg = (meta.vehicleReg || '').trim().toUpperCase();
+  if (reg) return 'reg:' + reg;
+  const rfid = (meta.rfid || '').trim().toUpperCase();
+  if (rfid) return 'rfid:' + rfid;
+  return 'veh:' + [meta.vehicleMake, meta.vehicleModel, meta.vehicleClass]
+    .map(s => (s || '').trim().toUpperCase()).join('|');
+}
+function dayKey(ts) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+// True if `log` is the earliest track entry (by start time) for its vehicle
+// on its calendar day, out of every log currently in state — including
+// still-open ones, and regardless of which session/engineer logged them.
+// Only that entry carries the vehicle rental charge; every later track
+// visit that day for the same vehicle is track cost only.
+function isFirstVehicleEntryOfDay(log) {
+  const day = dayKey(log.entryAt);
+  const key = vehicleKey(log.meta);
+  return !state.logs.some(other =>
+    other.id !== log.id &&
+    dayKey(other.entryAt) === day &&
+    vehicleKey(other.meta) === key &&
+    (other.entryAt < log.entryAt || (other.entryAt === log.entryAt && other.id < log.id))
+  );
+}
+
+// ──────────────────────────────────────────────────────
 // BILLING COMPUTATION
 // ──────────────────────────────────────────────────────
 function computeBilling(log) {
@@ -842,7 +875,8 @@ function computeBilling(log) {
   const rateSet=state.billing.rates[log.track]||(Object.values(state.billing.rates)[0]||{pcr:1500,commercial:2500});
   const hourly=cat==='Commercial'?rateSet.commercial:rateSet.pcr;
   const trackCost=billedHours*hourly;
-  const vehicleCost=state.vehicleClassRates[log.meta.vehicleClass]||0;
+  // Vehicle rental is once-per-vehicle-per-day, not per track visit.
+  const vehicleCost = isFirstVehicleEntryOfDay(log) ? (state.vehicleClassRates[log.meta.vehicleClass]||0) : 0;
   return {actualHours,billedHours,trackCost,vehicleCost,totalCost:trackCost+vehicleCost};
 }
 
@@ -1225,14 +1259,14 @@ function confirmEndSession() {
 }
 
 function endSession(sid) {
-  const sLogs=state.logs.filter(l=>l.sessionId===sid).sort((a,b)=>a.entryAt-b.entryAt);
-  const firstId=sLogs[0]?.id;
   state.logs=state.logs.map(l=>{
     if(l.sessionId!==sid)return l;
     const closed={...l,exitAt:l.exitAt||Date.now(),status:l.status==='open'?'complete':l.status,sync:'pending'};
-    const b=computeBilling(closed);
-    if(l.id!==firstId){b.vehicleCost=0;b.totalCost=b.trackCost;}
-    return {...closed,...b};
+    // computeBilling() already applies the once-per-vehicle-per-day rule
+    // (see isFirstVehicleEntryOfDay), scoped to the whole day across all
+    // sessions/engineers — not just this session — so no extra override
+    // is needed here.
+    return {...closed,...computeBilling(closed)};
   });
   saveState(); updateSyncBadge();
   // Auto sync to Google Sheets — instant, regardless of status
