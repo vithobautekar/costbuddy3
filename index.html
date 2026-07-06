@@ -1734,29 +1734,23 @@ window.addEventListener('visibilitychange', () => {
     flushPendingLogSyncs();
     syncFromSheetOnLoad();
   } else {
-    flushBeforeUnload();
+    flushPendingBeacon();
   }
 });
 
 // 4. pagehide (iOS's reliable "about to be killed/backgrounded" signal,
-//    fires before beforeunload on mobile Safari). Auto-close any open
-//    session at the 2hr cap and fire remaining pending syncs with
-//    sendBeacon/keepalive so iOS lets them complete after the page dies.
-function flushBeforeUnload() {
-  // Auto-close open sessions so they don't stay 'open' indefinitely
-  const now = Date.now();
-  let changed = false;
-  state.logs = state.logs.map(l => {
-    if (l.status !== 'open') return l;
-    changed = true;
-    const exitAt = Math.min(now, l.entryAt + 2*3600_000);
-    const closed = {...l, exitAt, status: 'auto-closed', sync: 'pending'};
-    return {...closed, ...computeBilling(closed)};
-  });
-  if (changed) saveState();
-
-  // Fire every pending sync with keepalive — entries as well as exits —
-  // so nothing waits until the app is reopened to reach the sheet.
+//    fires before beforeunload on mobile Safari) and every 'hidden'
+//    visibilitychange (switching apps, locking the screen, etc). This
+//    ONLY pushes whatever is already marked pending — it must NEVER
+//    close an open session. Backgrounding is extremely common (a phone
+//    call, checking another app, screen auto-lock) and is not the same
+//    as the user choosing to end their session; ending a session is a
+//    deliberate action the engineer takes with the "End Session" button.
+//    The only place a session gets closed without that button is the
+//    real 2-hour idle timeout in checkAutoClose(), which checks actual
+//    elapsed time on its own 5-minute interval — independent of whether
+//    the tab happens to be hidden at that moment.
+function flushPendingBeacon() {
   if (!state.gsUrl) return;
   const toSync = state.logs.filter(l => l.sync === 'pending');
   toSync.forEach(l => {
@@ -1788,7 +1782,7 @@ function flushBeforeUnload() {
     }
   });
 }
-window.addEventListener('pagehide', flushBeforeUnload);
+window.addEventListener('pagehide', flushPendingBeacon);
 
 
 // Paste this into Apps Script in your Google Sheet:
