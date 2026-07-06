@@ -832,6 +832,39 @@ function dtLocal(ts) {
 // ──────────────────────────────────────────────────────
 // BILLING COMPUTATION
 // ──────────────────────────────────────────────────────
+// Identifies "the same vehicle" across sessions/days. RFID is mandatory
+// and unique per physical vehicle tag, so it's the most reliable key;
+// registration number is the fallback for older rows that predate RFID
+// being required, and make/model/class after that as a last resort.
+function vehicleKeyOf(meta) {
+  const rfid = meta.rfid && String(meta.rfid).trim();
+  if (rfid) return rfid;
+  const reg = meta.vehicleReg && String(meta.vehicleReg).trim().toUpperCase();
+  if (reg) return reg;
+  return `${meta.vehicleMake}|${meta.vehicleModel}|${meta.vehicleClass}`;
+}
+function dayKeyOf(ts) {
+  return new Date(ts).toISOString().slice(0,10);
+}
+
+// Vehicle hiring is a once-a-day cost for that vehicle, not a per-track
+// or per-session cost. A log only carries the vehicle cost if no OTHER
+// log for the same vehicle, same calendar day, has an earlier entry time
+// — regardless of which session or how many sessions that vehicle did
+// that day. Deliberately live-computed against state.logs (not cached)
+// so edits/deletes/out-of-order closes always self-correct via
+// reconcileVehicleCosts() below, rather than needing separate bookkeeping.
+function isFirstVehicleEntryOfDay(log) {
+  const key = vehicleKeyOf(log.meta);
+  const day = dayKeyOf(log.entryAt);
+  return !state.logs.some(o =>
+    o.id !== log.id &&
+    vehicleKeyOf(o.meta) === key &&
+    dayKeyOf(o.entryAt) === day &&
+    o.entryAt < log.entryAt
+  );
+}
+
 function computeBilling(log) {
   if (!log.exitAt) return {actualHours:0,billedHours:0,trackCost:0,vehicleCost:0,totalCost:0};
   const actualHours=(log.exitAt-log.entryAt)/3_600_000;
@@ -842,8 +875,29 @@ function computeBilling(log) {
   const rateSet=state.billing.rates[log.track]||(Object.values(state.billing.rates)[0]||{pcr:1500,commercial:2500});
   const hourly=cat==='Commercial'?rateSet.commercial:rateSet.pcr;
   const trackCost=billedHours*hourly;
-  const vehicleCost=state.vehicleClassRates[log.meta.vehicleClass]||0;
+  const vehicleCost=isFirstVehicleEntryOfDay(log)?(state.vehicleClassRates[log.meta.vehicleClass]||0):0;
   return {actualHours,billedHours,trackCost,vehicleCost,totalCost:trackCost+vehicleCost};
+}
+
+// Re-runs computeBilling() over every closed log. Needed because
+// isFirstVehicleEntryOfDay() depends on OTHER logs' entry times — an
+// edit, a delete, or logs closing out of chronological order can change
+// which log is "first" for a given vehicle/day, so every affected log
+// needs its trackCost/vehicleCost/totalCost refreshed and re-pushed.
+function reconcileVehicleCosts() {
+  let changed = 0;
+  state.logs.forEach(l => {
+    if (!l.exitAt) return;
+    const b = computeBilling(l);
+    if (l.trackCost!==b.trackCost || l.vehicleCost!==b.vehicleCost || l.totalCost!==b.totalCost
+        || l.billedHours!==b.billedHours || l.actualHours!==b.actualHours) {
+      Object.assign(l, b);
+      l.sync = 'pending';
+      changed++;
+    }
+  });
+  if (changed) { saveState(); updateSyncBadge(); }
+  return changed;
 }
 
 // ──────────────────────────────────────────────────────
