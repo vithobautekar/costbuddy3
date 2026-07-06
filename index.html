@@ -1802,8 +1802,18 @@ function doPost(e) {
         const idx = ids.indexOf(idToFind);
         if (idx !== -1) foundRow = idx + 2;
       }
-      if (foundRow > 0) { sheet.getRange(foundRow, 1, 1, data.row.length).setValues([data.row]); }
-      else { sheet.appendRow(data.row); }
+      const row = data.row.slice();
+      if (data.sheetName === 'Logs') {
+        // Force Date/TimeIn/TimeOut (indices 2,13,14) to stay plain text —
+        // otherwise Sheets auto-converts them to real Date/Time cells,
+        // which round-trip through JSON as ISO strings and silently
+        // reset the time to midnight on the next pull. See gappscript.gs.
+        [2, 13, 14].forEach(i => {
+          if (typeof row[i] === 'string' && row[i] !== '' && row[i][0] !== "'") row[i] = "'" + row[i];
+        });
+      }
+      if (foundRow > 0) { sheet.getRange(foundRow, 1, 1, row.length).setValues([row]); }
+      else { sheet.appendRow(row); }
     }
     if (data.action === 'saveConfig') {
       const sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
@@ -1872,8 +1882,23 @@ function parseSheetDateTime(dateVal, timeVal) {
     } else if (timeVal instanceof Date) {
       d.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
     } else {
-      const [h, m] = String(timeVal).split(':').map(Number);
-      if (!isNaN(h)) d.setHours(h, isNaN(m) ? 0 : m, 0, 0);
+      const s = String(timeVal);
+      // Sheets sometimes auto-converts a "14:35"-looking string into a
+      // real time cell; once that round-trips through Apps Script's
+      // JSON response, it arrives here as an ISO datetime string like
+      // "1899-12-30T09:05:00.000Z" instead of "14:35". A plain
+      // h:m split on that produces NaN and used to silently skip
+      // setHours(), leaving the time at midnight. Catch that shape here
+      // as a fallback for any already-written rows — going forward,
+      // the backend forces these columns to stay plain text so this
+      // branch shouldn't normally be needed for new rows.
+      const iso = s.match(/T(\d{2}):(\d{2})/);
+      if (iso) {
+        d.setUTCHours(Number(iso[1]), Number(iso[2]), 0, 0);
+      } else {
+        const [h, m] = s.split(':').map(Number);
+        if (!isNaN(h)) d.setHours(h, isNaN(m) ? 0 : m, 0, 0);
+      }
     }
   }
   return d.getTime();
