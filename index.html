@@ -7,6 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<!-- Firebase (compat build — keeps the same window.firebase global API used below) -->
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
 <style>
 /* ── CSS Variables ── */
 :root {
@@ -149,18 +155,38 @@ textarea { resize: vertical; min-height: 2.5rem; }
 /* ── KPI Cards ── */
 .kpi-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, 1fr); }
 @media (min-width: 768px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
-.kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 1.25rem; }
+.kpi-card { position: relative; background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 1.25rem; overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--kpi-accent, var(--primary)); }
+.kpi-card::after { content: ''; position: absolute; top: -3rem; right: -3rem; width: 6rem; height: 6rem; border-radius: 50%; background: var(--kpi-accent, var(--primary)); opacity: 0.08; pointer-events: none; }
+.kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px -8px color-mix(in srgb, var(--kpi-accent, var(--primary)) 35%, transparent); border-color: color-mix(in srgb, var(--kpi-accent, var(--primary)) 45%, var(--border)); }
 .kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted-foreground); }
 .kpi-icon { width: 2rem; height: 2rem; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; }
 .kpi-icon-primary { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
 .kpi-icon-muted { background: var(--muted); color: var(--muted-foreground); }
+.kpi-icon-green { background: color-mix(in srgb, var(--chart2) 15%, transparent); color: var(--chart2); }
+.kpi-icon-blue { background: color-mix(in srgb, var(--chart3) 15%, transparent); color: var(--chart3); }
+.kpi-icon-purple { background: color-mix(in srgb, var(--chart4) 15%, transparent); color: var(--chart4); }
+.kpi-icon-red { background: color-mix(in srgb, var(--chart5) 15%, transparent); color: var(--chart5); }
 .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; margin-top: 0.75rem; }
+.kpi-trend { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.7rem; font-weight: 700; margin-top: 0.5rem; padding: 0.1rem 0.4rem; border-radius: 999px; }
+.kpi-trend-up { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.kpi-trend-down { background: color-mix(in srgb, var(--destructive) 15%, transparent); color: var(--destructive); }
+.kpi-trend-flat { background: var(--muted); color: var(--muted-foreground); }
+
+/* ── Quick stat chips ── */
+.chip-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.stat-chip { display: flex; align-items: center; gap: 0.55rem; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 0.45rem 0.9rem 0.45rem 0.55rem; font-size: 0.78rem; transition: transform 0.15s ease, border-color 0.15s ease; }
+.stat-chip:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--chip-accent, var(--primary)) 50%, var(--border)); }
+.stat-chip-dot { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--chip-accent, var(--primary)) 18%, transparent); color: var(--chip-accent, var(--primary)); flex-shrink: 0; }
+.stat-chip b { font-family: 'JetBrains Mono', monospace; color: var(--foreground); }
 
 /* ── Heatmap ── */
 .heatmap { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.5rem; }
 @media (min-width: 640px) { .heatmap { grid-template-columns: repeat(16, 1fr); } }
-.heatmap-cell { aspect-ratio: 1; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--border) 40%, transparent); padding: 0.375rem; transition: transform 0.1s; cursor: default; }
-.heatmap-cell:hover { transform: scale(1.05); }
+.heatmap-cell { aspect-ratio: 1; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--border) 40%, transparent); padding: 0.375rem; transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: default; }
+.heatmap-cell:hover { transform: scale(1.08); box-shadow: 0 6px 18px -6px rgba(0,0,0,0.5); z-index: 1; }
+.heatmap-legend { display: flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; color: var(--muted-foreground); }
+.heatmap-legend-swatch { width: 5rem; height: 0.5rem; border-radius: 999px; background: linear-gradient(90deg, var(--muted), var(--primary)); }
 
 /* ── Dialog / Modal ── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
@@ -223,6 +249,8 @@ textarea { resize: vertical; min-height: 2.5rem; }
 .empty-state { border: 1px dashed var(--border); border-radius: var(--radius); padding: 3rem; text-align: center; color: var(--muted-foreground); font-size: 0.875rem; }
 .user-avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; flex-shrink: 0; }
 .canvas-wrap { position: relative; height: 16rem; }
+.dash-charts-grid { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .dash-charts-grid { grid-template-columns: 1fr 1fr; } }
 
 /* ── Google Sheets Config Modal ── */
 .gs-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid; cursor: pointer; }
@@ -240,42 +268,34 @@ textarea { resize: vertical; min-height: 2.5rem; }
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ══════════════════════════════════════════════════════
-     GOOGLE SHEETS CONFIG MODAL
+     FIREBASE STATUS MODAL
 ══════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="modal-gs">
+<div class="modal-overlay" id="modal-fb">
   <div class="modal" style="max-width:36rem">
     <div class="modal-title">
-      <svg width="20" height="20" viewBox="0 0 48 48" style="flex-shrink:0"><rect width="48" height="48" rx="6" fill="#0F9D58"/><rect x="8" y="12" width="32" height="24" rx="2" fill="white"/><rect x="12" y="16" width="10" height="3" fill="#0F9D58"/><rect x="26" y="16" width="10" height="3" fill="#0F9D58"/><rect x="12" y="22" width="10" height="3" fill="#0F9D58"/><rect x="26" y="22" width="10" height="3" fill="#0F9D58"/><rect x="12" y="28" width="10" height="3" fill="#0F9D58"/><rect x="26" y="28" width="10" height="3" fill="#0F9D58"/></svg>
-      Google Sheets Integration
+      <svg width="20" height="20" viewBox="0 0 48 48" style="flex-shrink:0"><path d="M10 38L26 4l4.5 8.6L18.6 35z" fill="#FFA000"/><path d="M10 38l3.4-27 8 15z" fill="#F57C00"/><path d="M10 38l24-6-8.8-16.8L18.6 35z" fill="#FFCA28"/></svg>
+      Firebase Connection
     </div>
-    <p class="modal-desc">Connect your Google Sheet so completed sessions are synced automatically. Follow the 3 steps below.</p>
+    <p class="modal-desc">Logs, users, and billing config sync live to every device through Firestore — no manual sync step needed.</p>
 
     <div class="space-y">
       <div class="gs-step">
-        <strong>Step 1 — Create Google Sheet</strong><br><br>
-        Create a new Google Sheet. Add a tab named <code>Logs</code>.<br>
-        In row 1, add these headers exactly:<br>
-        <code style="display:inline-block;margin-top:0.4rem;word-break:break-all">ID | SessionID | Date | Engineer | Track | TR_No | Project | VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg | TimeIn | TimeOut | ActualHrs | BilledHrs | TrackCost | VehicleCost | TotalCost | Status</code>
+        <strong>Project</strong><br><br>
+        <span class="mono" id="fb-project-id">—</span><br>
+        <span id="fb-status-line" class="text-xs text-muted">Checking connection…</span>
       </div>
       <div class="gs-step">
-        <strong>Step 2 — Deploy Apps Script Web App</strong><br><br>
-        In your Sheet → Extensions → Apps Script. Paste the script from the link below. Deploy as <strong>Web App</strong> (Anyone access). Copy the Web App URL.<br><br>
-        <a href="https://gist.github.com/YOUR_GIST_URL" id="gs-script-link" target="_blank" style="color:var(--primary)">📄 Copy Apps Script code</a><br>
-        <small class="text-muted">(See the README block at the bottom of this HTML for the script text.)</small>
+        <strong>To point this app at a different Firebase project</strong><br><br>
+        Edit the <code>firebaseConfig</code> object near the top of the <code>&lt;script&gt;</code> tag in <code>index.html</code> with your project's config (Firebase Console → Project settings → General → Your apps → SDK setup and configuration), then re-deploy the file.
       </div>
       <div class="gs-step">
-        <strong>Step 3 — Paste Web App URL below</strong>
-        <div class="form-field mt-2">
-          <label for="gs-url">Apps Script Web App URL</label>
-          <input type="url" id="gs-url" placeholder="https://script.google.com/macros/s/…/exec">
-        </div>
+        <strong>Firestore security rules</strong><br><br>
+        Paste the rules from <code>firestore.rules</code> (bundled alongside this file, and repeated in the comment block at the bottom of <code>index.html</code>) into Firebase Console → Firestore Database → Rules.
       </div>
     </div>
 
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-gs')">Cancel</button>
-      <button class="btn btn-outline" onclick="gsTest()">Test Connection</button>
-      <button class="btn btn-primary" onclick="gsSave()">Save & Connect</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-fb')">Close</button>
     </div>
   </div>
 </div>
@@ -307,6 +327,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
     <div class="form-grid" style="margin-bottom:1rem">
       <div class="form-field"><label>Track</label><select id="edit-track"></select></div>
       <div class="form-field"><label>Project</label><input type="text" id="edit-project"></div>
+      <div class="form-field"><label>WBS</label><input type="text" id="edit-wbs"></div>
       <div class="form-field"><label>Time In</label><input type="datetime-local" id="edit-time-in"></div>
       <div class="form-field"><label>Time Out</label><input type="datetime-local" id="edit-time-out"></div>
       <div class="form-field"><label>Status</label>
@@ -416,7 +437,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
         </div>
       </div>
       <div class="topbar-actions">
-        <span class="sync-badge sync-synced" id="sync-badge" title="Google Sheets config" style="cursor:pointer">
+        <span class="sync-badge sync-synced" id="sync-badge" title="Firebase connection" style="cursor:pointer">
           <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           <span id="sync-text">Synced</span>
         </span>
@@ -455,7 +476,9 @@ textarea { resize: vertical; min-height: 2.5rem; }
       <div class="form-grid" id="session-form">
         <div class="form-field"><label>TR Number <span class="text-primary">*</span></label><input type="text" id="s-tr" placeholder="01" oninput="updateMetaField('trNumber',this.value)"></div>
         <div class="form-field"><label>Project <span class="text-primary">*</span></label><input type="text" id="s-project" placeholder="NVH-2025" oninput="updateMetaField('project',this.value)"></div>
-        <div class="form-field"><label>Vehicle Make</label><input type="text" id="s-make" placeholder="Tata" oninput="updateMetaField('vehicleMake',this.value)"></div>
+        <div class="form-field"><label>WBS</label><input type="text" id="s-wbs" placeholder="WBS-XXXXX" oninput="updateMetaField('wbs',this.value)"></div>
+        <div class="form-field"><label>Vehicle Make</label>
+<input type="text" id="s-make" placeholder="Tata" oninput="updateMetaField('vehicleMake',this.value)"></div>
         <div class="form-field"><label>Vehicle Model</label><input type="text" id="s-model" placeholder="Nexon EV" oninput="updateMetaField('vehicleModel',this.value)"></div>
         <div class="form-field"><label>Vehicle Class <span class="text-primary">*</span></label>
           <select id="s-class" onchange="updateMetaField('vehicleClass',this.value)">
@@ -486,10 +509,6 @@ textarea { resize: vertical; min-height: 2.5rem; }
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="text-xs text-muted" id="session-status-msg">Fill required fields then start the session.</div>
         <div class="flex gap-2">
-          <button class="btn btn-ghost btn-sm" onclick="syncNow()">
-            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            Sync now
-          </button>
           <button class="btn btn-primary" id="btn-start-session" onclick="startSession()">
             Start session
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
@@ -540,9 +559,15 @@ textarea { resize: vertical; min-height: 2.5rem; }
         <h1 class="text-2xl">Operations dashboard</h1>
         <p class="text-sm text-muted">Cross-track cost, vehicle hiring, utilisation.</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <select id="dash-project" onchange="renderDashboard()" style="width:12rem">
           <option value="all">All projects</option>
+        </select>
+        <select id="dash-tr" onchange="renderDashboard()" style="width:10rem">
+          <option value="all">All TR numbers</option>
+        </select>
+        <select id="dash-wbs" onchange="renderDashboard()" style="width:10rem">
+          <option value="all">All WBS</option>
         </select>
         <select id="dash-month" onchange="renderDashboard()" style="width:11rem">
           <option value="all">All months</option>
@@ -566,10 +591,15 @@ textarea { resize: vertical; min-height: 2.5rem; }
           <option value="q3">Q3 (Oct–Dec)</option>
           <option value="q4">Q4 (Jan–Mar)</option>
         </select>
+        <button class="btn btn-primary" id="btn-export-pdf" onclick="exportDashboardPDF()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          Export PDF report
+        </button>
       </div>
     </div>
     <div class="kpi-grid" id="kpi-cards"></div>
-    <div style="display:grid;gap:1.25rem;grid-template-columns:1fr" id="dash-charts-row">
+    <div class="chip-row" id="dash-chip-row"></div>
+    <div class="dash-charts-grid" id="dash-charts-row">
       <div class="card card-p" style="grid-column:1/-1">
         <div class="section-title">Sessions per track</div>
         <div class="canvas-wrap"><canvas id="chart-track"></canvas></div>
@@ -578,9 +608,16 @@ textarea { resize: vertical; min-height: 2.5rem; }
         <div class="section-title">Spend by project</div>
         <div class="canvas-wrap"><canvas id="chart-project"></canvas></div>
       </div>
+      <div class="card card-p">
+        <div class="section-title">Sessions by category</div>
+        <div class="canvas-wrap"><canvas id="chart-category"></canvas></div>
+      </div>
     </div>
     <div class="card card-p">
-      <div class="section-title">Track utilisation heatmap</div>
+      <div class="flex items-center justify-between mb-4">
+        <div class="section-title" style="margin:0">Track utilisation heatmap</div>
+        <div class="heatmap-legend">Low <div class="heatmap-legend-swatch"></div> High</div>
+      </div>
       <div class="heatmap" id="heatmap"></div>
     </div>
     <div class="card card-p">
@@ -590,6 +627,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
       </div>
       <div class="overflow-x" id="dash-recent-table"></div>
     </div>
+
   </main>
 </div>
 
@@ -620,6 +658,16 @@ textarea { resize: vertical; min-height: 2.5rem; }
         <div class="form-field"><label>Track</label>
           <select id="log-filter-track" onchange="renderLogs()">
             <option value="all">All tracks</option>
+          </select>
+        </div>
+        <div class="form-field"><label>TR Number</label>
+          <select id="log-filter-tr" onchange="renderLogs()">
+            <option value="all">All TR numbers</option>
+          </select>
+        </div>
+        <div class="form-field"><label>WBS</label>
+          <select id="log-filter-wbs" onchange="renderLogs()">
+            <option value="all">All WBS</option>
           </select>
         </div>
         <div class="form-field"><label>Category</label>
@@ -738,7 +786,6 @@ let state = {
   vehicleClassRates: {},
   billing: null,
   logs: [],
-  gsUrl: '',    // Google Sheets Apps Script URL
 };
 
 // ──────────────────────────────────────────────────────
@@ -780,26 +827,46 @@ function seedState() {
       configUpdatedAt: 0,
     },
     logs: [],
-    gsUrl: '',
   };
 }
 
-// Hardcoded fallback so every device/browser auto-connects to the team's
-// shared Google Sheet backend, even before localStorage has ever been set
-// on that device. Still overridable from Settings if the URL ever changes.
-const DEFAULT_GS_URL = 'https://script.google.com/macros/s/AKfycbx7YQIntzCCTKEwqKIK31WXMyE-dDDj9v47g_k3gbtLIa6I8uwVV-BY-4nsDvDqfZW7uw/exec';
-
+// Every device/browser talks to the same shared Firebase project — see
+// firebaseConfig below. localStorage is now just an instant-boot cache
+// (so the UI has something to show before Firestore's first snapshot
+// arrives, and still works read-only if the device is offline); Firestore
+// itself is the real source of truth and handles the actual cross-device
+// sync, offline queueing, and retries.
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) { const saved=JSON.parse(raw); state = { ...seedState(), ...saved, vehicleClassRates:{...seedState().vehicleClassRates,...(saved.vehicleClassRates||{})}, auth:{userId:null} }; }
     else { state = seedState(); }
   } catch(e) { state = seedState(); }
-  if (!state.gsUrl) { state.gsUrl = DEFAULT_GS_URL; saveState(); }
 }
 function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){}
 }
+
+// ──────────────────────────────────────────────────────
+// FIREBASE CONFIG
+// ──────────────────────────────────────────────────────
+// TODO: replace with YOUR project's config — Firebase Console → Project
+// settings → General → Your apps → SDK setup and configuration.
+// This object is not secret; access is controlled by Firestore security
+// rules (see firestore.rules / the comment block at the end of this file),
+// not by hiding this config.
+const firebaseConfig = {
+  apiKey: "AIzaSyDZcxdtrOIhgaeTjNBziAlb2GJ7mW6aNww",
+  authDomain: "natraxcostlogger.firebaseapp.com",
+  projectId: "natraxcostlogger",
+  storageBucket: "natraxcostlogger.firebasestorage.app",
+  messagingSenderId: "1068862173323",
+  appId: "1:1068862173323:web:968164ac5f1501110fe48e"
+};
+let db = null;
+let fbAuth = null;
+let fbStatus = 'connecting'; // 'connecting' | 'online' | 'offline' | 'error'
+let unsubUsers = null, unsubLogs = null, unsubBilling = null;
 
 // ──────────────────────────────────────────────────────
 // HELPERS
@@ -830,39 +897,6 @@ function dtLocal(ts) {
 }
 
 // ──────────────────────────────────────────────────────
-// VEHICLE RENTAL DEDUPE — charge once per vehicle per day
-// ──────────────────────────────────────────────────────
-// Identifies the physical vehicle for dedup purposes: registration number
-// is the most reliable, RFID next, and make+model+class as a last resort
-// for entries missing both (so at least identical entries still dedupe).
-function vehicleKey(meta) {
-  const reg = (meta.vehicleReg || '').trim().toUpperCase();
-  if (reg) return 'reg:' + reg;
-  const rfid = (meta.rfid || '').trim().toUpperCase();
-  if (rfid) return 'rfid:' + rfid;
-  return 'veh:' + [meta.vehicleMake, meta.vehicleModel, meta.vehicleClass]
-    .map(s => (s || '').trim().toUpperCase()).join('|');
-}
-function dayKey(ts) {
-  return new Date(ts).toISOString().slice(0, 10);
-}
-// True if `log` is the earliest track entry (by start time) for its vehicle
-// on its calendar day, out of every log currently in state — including
-// still-open ones, and regardless of which session/engineer logged them.
-// Only that entry carries the vehicle rental charge; every later track
-// visit that day for the same vehicle is track cost only.
-function isFirstVehicleEntryOfDay(log) {
-  const day = dayKey(log.entryAt);
-  const key = vehicleKey(log.meta);
-  return !state.logs.some(other =>
-    other.id !== log.id &&
-    dayKey(other.entryAt) === day &&
-    vehicleKey(other.meta) === key &&
-    (other.entryAt < log.entryAt || (other.entryAt === log.entryAt && other.id < log.id))
-  );
-}
-
-// ──────────────────────────────────────────────────────
 // BILLING COMPUTATION
 // ──────────────────────────────────────────────────────
 function computeBilling(log) {
@@ -875,9 +909,113 @@ function computeBilling(log) {
   const rateSet=state.billing.rates[log.track]||(Object.values(state.billing.rates)[0]||{pcr:1500,commercial:2500});
   const hourly=cat==='Commercial'?rateSet.commercial:rateSet.pcr;
   const trackCost=billedHours*hourly;
-  // Vehicle rental is once-per-vehicle-per-day, not per track visit.
-  const vehicleCost = isFirstVehicleEntryOfDay(log) ? (state.vehicleClassRates[log.meta.vehicleClass]||0) : 0;
+  const vehicleCost=state.vehicleClassRates[log.meta.vehicleClass]||0;
   return {actualHours,billedHours,trackCost,vehicleCost,totalCost:trackCost+vehicleCost};
+}
+
+// ──────────────────────────────────────────────────────
+// LOG EXTRACTION BY PERIOD
+// ──────────────────────────────────────────────────────
+
+// Resolves a period descriptor into a [startMs, endMs) window (local time).
+function resolvePeriodRange(period) {
+  const startOfDay = (d) => { const x=new Date(d); x.setHours(0,0,0,0); return x; };
+  const endOfDay   = (d) => { const x=new Date(d); x.setHours(23,59,59,999); return x; };
+
+  switch (period.type) {
+    case 'today': {
+      const now = new Date();
+      return { start: startOfDay(now).getTime(), end: endOfDay(now).getTime() };
+    }
+    case 'day': {
+      // period.date = 'YYYY-MM-DD'
+      const d = new Date(period.date + 'T00:00:00');
+      return { start: startOfDay(d).getTime(), end: endOfDay(d).getTime() };
+    }
+    case 'month': {
+      // period.month = 'YYYY-MM'
+      const [y, m] = period.month.split('-').map(Number);
+      const start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+      const end   = new Date(y, m, 0, 23, 59, 59, 999); // last day of month
+      return { start: start.getTime(), end: end.getTime() };
+    }
+    case 'custom': {
+      // period.start / period.end = 'YYYY-MM-DD'
+      const s = startOfDay(new Date(period.start + 'T00:00:00'));
+      const e = endOfDay(new Date(period.end + 'T00:00:00'));
+      return { start: s.getTime(), end: e.getTime() };
+    }
+    default:
+      throw new Error(`Unknown period type: ${period.type}`);
+  }
+}
+
+// Returns a fully enriched copy of a log — original fields + fresh computed fields.
+function enrichLog(l) {
+  const computed = computeBilling(l);
+  return { ...l, ...computed };
+}
+
+// Core extractor: returns { logs, summary } for the given period.
+// period examples:
+//   {type:'today'}
+//   {type:'day', date:'2026-07-05'}
+//   {type:'month', month:'2026-07'}
+//   {type:'custom', start:'2026-06-01', end:'2026-06-30'}
+function extractLogs(period, filters = {}) {
+  const { start, end } = resolvePeriodRange(period);
+
+  let logs = state.logs.filter(l => l.entryAt >= start && l.entryAt <= end);
+
+  // Optional extra filters, same shape as the Logs page filters
+  if (filters.engineerId && filters.engineerId !== 'all')
+    logs = logs.filter(l => l.engineerId === filters.engineerId);
+  if (filters.track && filters.track !== 'all')
+    logs = logs.filter(l => l.track === filters.track);
+  if (filters.vehicleCategory && filters.vehicleCategory !== 'all')
+    logs = logs.filter(l => l.meta.vehicleCategory === filters.vehicleCategory);
+  if (filters.status && filters.status !== 'all')
+    logs = logs.filter(l => l.status === filters.status);
+
+  logs = logs.map(enrichLog).sort((a, b) => a.entryAt - b.entryAt);
+
+  const summary = logs.reduce((a, l) => ({
+    count: a.count + 1,
+    actualHours: a.actualHours + (l.actualHours || 0),
+    billedHours: a.billedHours + (l.billedHours || 0),
+    trackCost:   a.trackCost   + (l.trackCost   || 0),
+    vehicleCost: a.vehicleCost + (l.vehicleCost || 0),
+    totalCost:   a.totalCost   + (l.totalCost   || 0),
+  }), { count:0, actualHours:0, billedHours:0, trackCost:0, vehicleCost:0, totalCost:0 });
+
+  return { period, range: { start, end }, logs, summary };
+}
+
+// ── Convenience wrappers ──
+const getTodayLogs      = (filters) => extractLogs({ type: 'today' }, filters);
+const getLogsForDay     = (dateStr, filters) => extractLogs({ type: 'day', date: dateStr }, filters);
+const getLogsForMonth   = (monthStr, filters) => extractLogs({ type: 'month', month: monthStr }, filters);
+const getLogsForRange   = (startStr, endStr, filters) =>
+  extractLogs({ type: 'custom', start: startStr, end: endStr }, filters);
+
+// Exports the logs for a given period to CSV, using the same column layout as exportCSV().
+function exportLogsCSVForPeriod(period, filters = {}, filenamePrefix = 'natrax-period-report') {
+  const { logs } = extractLogs(period, filters);
+  if (logs.length === 0) { toast('No logs found for this period', 'error'); return; }
+  const headers=['Date','Engineer','Track','TR','Project','WBS','Make','Model','Cat','RFID','TimeIn','TimeOut','Hours','BilledHrs','TrackCost','VehicleCost','Total','Status'];
+  const rows=logs.map(l=>[
+    fmtDate(l.entryAt),l.engineerName,l.track,l.meta.trNumber,l.meta.project,l.meta.wbs,
+    l.meta.vehicleMake,l.meta.vehicleModel,l.meta.vehicleCategory,l.meta.rfid,
+    fmtTime(l.entryAt),l.exitAt?fmtTime(l.exitAt):'',
+    l.exitAt?fmtHM(l.exitAt-l.entryAt):'',
+    (l.billedHours||0).toFixed(2),(l.trackCost||0).toFixed(0),(l.vehicleCost||0).toFixed(0),(l.totalCost||0).toFixed(0),l.status,
+  ]);
+  const csv=[headers,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`${filenamePrefix}-${Date.now()}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Report exported ✓');
 }
 
 // ──────────────────────────────────────────────────────
@@ -939,27 +1077,35 @@ function renderTopbar(page) {
 
 function updateSyncBadge() {
   const pending = state.logs.filter(l=>l.sync==='pending').length;
-  const configPending = !!state.pendingConfigPush;
   const badge = document.getElementById('sync-badge');
   const text = document.getElementById('sync-text');
-  const connected = !!state.gsUrl;
-  if (!connected) {
+  if (fbStatus === 'error') {
     badge.className='sync-badge sync-offline';
-    text.textContent='Sheets: Not linked';
-  } else if (configPending) {
-    badge.className='sync-badge sync-offline';
-    text.textContent='Config not synced — retrying';
-  } else if (pending>0) {
+    text.textContent='Firebase: error';
+  } else if (fbStatus === 'connecting') {
+    badge.className='sync-badge sync-pending';
+    text.textContent='Connecting…';
+  } else if (pending > 0) {
     badge.className='sync-badge sync-pending';
     text.textContent=`Pending · ${pending}`;
+  } else if (fbStatus === 'offline') {
+    badge.className='sync-badge sync-pending';
+    text.textContent='Offline (cached)';
   } else {
     badge.className='sync-badge sync-synced';
-    text.textContent='Synced ✓';
+    text.textContent='Live ✓';
+  }
+  const fbProjectEl = document.getElementById('fb-project-id');
+  if (fbProjectEl) fbProjectEl.textContent = firebaseConfig.projectId || '—';
+  const fbStatusLine = document.getElementById('fb-status-line');
+  if (fbStatusLine) {
+    const msg = { connecting:'Connecting…', online:'Connected — live sync active', offline:'Offline — showing cached data, will resync automatically', error:'Could not connect — check firebaseConfig and Firestore rules' };
+    fbStatusLine.textContent = msg[fbStatus] || '';
   }
   const isAdmin = currentUser()?.role==='admin';
   badge.style.cursor = isAdmin ? 'pointer' : 'default';
   badge.style.opacity = isAdmin ? '1' : '0.6';
-  badge.onclick = isAdmin ? function(){ openModal('modal-gs'); } : null;
+  badge.onclick = isAdmin ? function(){ openModal('modal-fb'); } : null;
 }
 
 function renderNavTabs(active) {
@@ -1011,16 +1157,10 @@ function setLoginMode(m) {
 }
 
 async function doLogin() {
-  // Pull latest config from sheet before checking credentials.
-  // This is the gate that guarantees accounts, rates, and vehicle costs
-  // are always current before any session begins — regardless of device,
-  // browser, or how long since the last session on this device.
-  const loginBtn = document.getElementById('login-btn');
-  const origText = loginBtn ? loginBtn.textContent : '';
-  if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Syncing…'; }
-  await pullConfigFromSheet();
-  if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = origText; }
-
+  // Users/accounts are already kept current by the live Firestore
+  // listener (attachListeners' users onSnapshot) — no manual pull needed
+  // before checking credentials, regardless of device or how long it's
+  // been since the last session on this device.
   if (loginMode==='engineer') {
     const pin = document.getElementById('pin-input').value;
     const u = state.users.find(x=>x.role==='engineer'&&x.active&&x.pin===pin);
@@ -1064,7 +1204,7 @@ let sessionId = null;
 
 function emptyMeta(name) {
   return {
-    trNumber:'', project:'', vehicleMake:'', vehicleModel:'',
+    trNumber:'', project:'', wbs:'', vehicleMake:'', vehicleModel:'',
     vehicleClass:'Hatchback Basic', vehicleCategory:'PCR', vehicleReg:'', rfid:'',
     testDate: new Date().toISOString().slice(0,10),
     testType:'', testEngineer:name, remarks:'',
@@ -1097,6 +1237,7 @@ function renderLogPage() {
   // Set form fields from meta
   document.getElementById('s-tr').value = sessionMeta.trNumber;
   document.getElementById('s-project').value = sessionMeta.project;
+  document.getElementById('s-wbs').value = sessionMeta.wbs;
   document.getElementById('s-make').value = sessionMeta.vehicleMake;
   document.getElementById('s-model').value = sessionMeta.vehicleModel;
   document.getElementById('s-class').value = sessionMeta.vehicleClass||'Hatchback Basic';
@@ -1109,7 +1250,7 @@ function renderLogPage() {
 
 // Disable/enable session form inputs
 function setFormDisabled(disabled) {
-  ['s-tr','s-project','s-make','s-model','s-class','s-cat','s-reg','s-rfid','s-date','s-type','s-remarks'].forEach(id=>{
+  ['s-tr','s-project','s-wbs','s-make','s-model','s-class','s-cat','s-reg','s-rfid','s-date','s-type','s-remarks'].forEach(id=>{
     document.getElementById(id).disabled = disabled;
   });
 }
@@ -1178,11 +1319,12 @@ function startLog(engineer, track, meta, sid) {
   renderTodayLogs();
   updateSessionStatus();
   updateSyncBadge();
-  // Push the entry to the sheet immediately — don't wait for exit or
-  // session-end. If the app is killed seconds later, the entry is
-  // already on its way (or will be picked up by the periodic/visibility
-  // retries below) instead of being lost with the in-memory session.
-  syncLogToSheets(newLog);
+  // Push the entry to Firestore immediately — don't wait for exit or
+  // session-end. If the app is killed seconds later, the write is already
+  // queued in Firestore's own offline-persisted write queue (it retries
+  // and syncs automatically on reconnect — no manual flush/beacon code
+  // needed here, unlike the old Google Sheets version).
+  pushLog(newLog);
   return logId;
 }
 
@@ -1201,8 +1343,8 @@ function closeLog(logId) {
   updateSyncBadge();
   // Push the exit immediately too — same reasoning as entry above.
   // Final session-level billing (multi-track vehicle-cost split) still
-  // gets pushed again at endSession(), which simply upserts over this row.
-  if(closedLog) syncLogToSheets(closedLog);
+  // gets pushed again at endSession(), which simply overwrites this doc.
+  if(closedLog) pushLog(closedLog);
 }
 
 function startSession() {
@@ -1253,24 +1395,27 @@ function confirmEndSession() {
   setFormDisabled(false);
   renderLogPage();
   // Clear form
-  ['s-tr','s-project','s-make','s-model','s-reg','s-rfid','s-type','s-remarks'].forEach(id=>{document.getElementById(id).value='';});
+  ['s-tr','s-project','s-wbs','s-make','s-model','s-reg','s-rfid','s-type','s-remarks'].forEach(id=>{document.getElementById(id).value='';});
   document.getElementById('s-cat').value='PCR';
   document.getElementById('s-date').value=new Date().toISOString().slice(0,10);
 }
 
 function endSession(sid) {
+  const sLogs=state.logs.filter(l=>l.sessionId===sid).sort((a,b)=>a.entryAt-b.entryAt);
+  const firstId=sLogs[0]?.id;
+  const updated=[];
   state.logs=state.logs.map(l=>{
     if(l.sessionId!==sid)return l;
     const closed={...l,exitAt:l.exitAt||Date.now(),status:l.status==='open'?'complete':l.status,sync:'pending'};
-    // computeBilling() already applies the once-per-vehicle-per-day rule
-    // (see isFirstVehicleEntryOfDay), scoped to the whole day across all
-    // sessions/engineers — not just this session — so no extra override
-    // is needed here.
-    return {...closed,...computeBilling(closed)};
+    const b=computeBilling(closed);
+    if(l.id!==firstId){b.vehicleCost=0;b.totalCost=b.trackCost;}
+    const merged={...closed,...b};
+    updated.push(merged);
+    return merged;
   });
   saveState(); updateSyncBadge();
-  // Auto sync to Google Sheets — instant, regardless of status
-  flushPendingLogSyncs();
+  // Push every affected log to Firestore — instant, regardless of status
+  updated.forEach(pushLog);
 }
 
 let todayLogIntervals=[];
@@ -1315,96 +1460,51 @@ function statusBadge(status) {
   return `<span class="badge ${map[status]||''}">${status}</span>`;
 }
 
-function syncNow() {
-  const n=flushPendingLogSyncs();
-  if(n===0){toast('Nothing pending to sync');return;}
-  toast(`Syncing ${n} log(s)…`);
+// ──────────────────────────────────────────────────────
+// FIREBASE / FIRESTORE SYNC
+// ──────────────────────────────────────────────────────
+// Firestore's SDK has its own offline write queue and automatic retry —
+// pushLog() just fires the write; there's no manual pending-queue, flush
+// interval, or navigator.sendBeacon fallback to maintain (the old Google
+// Sheets version needed all of that because a plain fetch() has no
+// built-in offline queue). If the write can't reach the server yet, the
+// SDK holds it locally (thanks to enablePersistence in initFirebase) and
+// sends it the moment connectivity returns, before this tab is even
+// closed. The "pending"/"synced" badge below is driven by Firestore's own
+// snapshot metadata (hasPendingWrites), not a flag we manage ourselves.
+function stripClientOnlyFields(log) {
+  const { sync, ...clean } = log;
+  return clean;
 }
 
-// ──────────────────────────────────────────────────────
-// GOOGLE SHEETS SYNC
-// ──────────────────────────────────────────────────────
-async function syncLogToSheets(log) {
-  if(!state.gsUrl) return;
+async function pushLog(log) {
+  if (!db) return;
   // Re-compute billing for any log that has an exitAt but zero billedHours —
   // this happens when iOS kills the app mid-session so endSession() never ran,
   // but exitAt was recovered on next open (e.g. via auto-close or manual edit).
   let l = log;
-  if(l.exitAt && (!l.billedHours || l.billedHours === 0)) {
+  if (l.exitAt && (!l.billedHours || l.billedHours === 0)) {
     const b = computeBilling(l);
-    // Only patch if computation produced real values
-    if(b.billedHours > 0) {
-      l = {...l, ...b};
+    if (b.billedHours > 0) {
+      l = { ...l, ...b };
       state.logs = state.logs.map(x => x.id === l.id ? l : x);
       saveState();
     }
   }
-  const row=[
-    l.id, l.sessionId,
-    fmtDate(l.entryAt), l.engineerName, l.track,
-    l.meta.trNumber, l.meta.project,
-    l.meta.vehicleMake, l.meta.vehicleModel,
-    l.meta.vehicleClass, l.meta.vehicleCategory, l.meta.rfid, l.meta.vehicleReg,
-    fmtTime(l.entryAt), l.exitAt?fmtTime(l.exitAt):'',
-    (l.actualHours||0).toFixed(2), (l.billedHours||0).toFixed(2),
-    (l.trackCost||0).toFixed(0), (l.vehicleCost||0).toFixed(0), (l.totalCost||0).toFixed(0),
-    l.status,
-  ];
   try {
-    // text/plain avoids CORS preflight so we get a real readable response
-    // back — unlike no-cors we can confirm the upsert actually landed.
-    const res = await fetch(state.gsUrl, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'appendRow',sheetName:'Logs',row}),
-    });
-    const result = await res.json();
-    if(result && result.ok) {
-      state.logs=state.logs.map(x=>x.id===l.id?{...x,sync:'synced'}:x);
-      saveState(); updateSyncBadge();
-    } else {
-      console.warn('Sheets sync rejected', result);
-    }
-  } catch(e) {
-    // Network failure — leave sync:'pending' so it retries automatically
-    // (periodic flush, next entry/exit, visibility-change, or reconnect).
-    console.warn('Sheets sync error',e);
+    await db.collection('logs').doc(l.id).set(stripClientOnlyFields(l), { merge: true });
+  } catch (e) {
+    // The write is still safely queued by Firestore's offline persistence
+    // and will retry on its own — nothing else to do here.
+    console.warn('pushLog error', e);
   }
-}
-
-// Retries every log still marked sync:'pending' — regardless of open/
-// closed status, so a track ENTRY that failed to reach the sheet gets
-// retried just as eagerly as an exit. Safe to call often: syncLogToSheets
-// no-ops cleanly if there's nothing new to say, and the sheet upserts by
-// ID so re-sending an already-synced row is harmless.
-function flushPendingLogSyncs() {
-  const toSync = state.logs.filter(l => l.sync === 'pending');
-  toSync.forEach(l => syncLogToSheets(l));
-  return toSync.length;
-}
-
-function gsTest() {
-  const url=document.getElementById('gs-url').value.trim();
-  if(!url){toast('Enter a URL first','error');return;}
-  toast('Testing connection…');
-  fetch(url+'?action=ping',{mode:'no-cors'})
-    .then(()=>toast('Connected! (CORS blocked preview — save & try a sync)'))
-    .catch(()=>toast('Could not reach URL','error'));
-}
-function gsSave() {
-  const url=document.getElementById('gs-url').value.trim();
-  if(!url){toast('Enter a URL','error');return;}
-  state.gsUrl=url; saveState();
-  closeModal('modal-gs');
-  toast('Google Sheets connected ✓ — pulling existing data…');
-  updateSyncBadge();
-  syncFromSheetOnLoad();
 }
 
 // ──────────────────────────────────────────────────────
 // DASHBOARD
 // ──────────────────────────────────────────────────────
-let chartTrack=null, chartProject=null;
+let chartTrack=null, chartProject=null, chartCategory=null;
+let lastDashboardSnapshot=null;
 function inQuarter(d,q) {
   if(q==='all')return true;
   const m=d.getMonth();
@@ -1417,11 +1517,25 @@ function renderDashboard() {
   const quarter=document.getElementById('dash-quarter')?.value||'all';
   const monthFilter=document.getElementById('dash-month')?.value||'all';
   const projectFilter=document.getElementById('dash-project')?.value||'all';
+  const trFilter=document.getElementById('dash-tr')?.value||'all';
+  const wbsFilter=document.getElementById('dash-wbs')?.value||'all';
   const projects=[...new Set(state.logs.map(l=>l.meta.project).filter(Boolean))];
   const dashProject=document.getElementById('dash-project');
   if(dashProject) {
     const prev=dashProject.value;
     dashProject.innerHTML='<option value="all">All projects</option>'+projects.map(p=>`<option value="${p}"${prev===p?' selected':''}>${p}</option>`).join('');
+  }
+  const dashTrNumbers=[...new Set(state.logs.map(l=>l.meta.trNumber).filter(Boolean))].sort();
+  const dashTr=document.getElementById('dash-tr');
+  if(dashTr) {
+    const prev=dashTr.value;
+    dashTr.innerHTML='<option value="all">All TR numbers</option>'+dashTrNumbers.map(t=>`<option value="${t}"${prev===t?' selected':''}>TR-${t}</option>`).join('');
+  }
+  const dashWbsList=[...new Set(state.logs.map(l=>l.meta.wbs).filter(Boolean))].sort();
+  const dashWbs=document.getElementById('dash-wbs');
+  if(dashWbs) {
+    const prev=dashWbs.value;
+    dashWbs.innerHTML='<option value="all">All WBS</option>'+dashWbsList.map(w=>`<option value="${w}"${prev===w?' selected':''}>${w}</option>`).join('');
   }
   const filtered=state.logs.filter(l=>{
     if(l.status==='open')return false;
@@ -1429,17 +1543,48 @@ function renderDashboard() {
     if(!inQuarter(d,quarter))return false;
     if(monthFilter!=='all'&&d.getMonth()!==Number(monthFilter))return false;
     if(projectFilter!=='all'&&l.meta.project!==projectFilter)return false;
+    if(trFilter!=='all'&&l.meta.trNumber!==trFilter)return false;
+    if(wbsFilter!=='all'&&l.meta.wbs!==wbsFilter)return false;
     return true;
   });
   const totals=filtered.reduce((a,l)=>({track:a.track+(l.trackCost||0),vehicle:a.vehicle+(l.vehicleCost||0),hours:a.hours+(l.billedHours||0)}),{track:0,vehicle:0,hours:0});
   const engCount=state.users.filter(u=>u.role==='engineer'&&u.active).length;
-  // KPIs
+  // Trailing 30d vs prior 30d trend (independent of month/quarter picker, respects project/TR/WBS filters)
+  const DAY=86400000, now=Date.now();
+  const trendBase=state.logs.filter(l=>{
+    if(l.status==='open')return false;
+    if(projectFilter!=='all'&&l.meta.project!==projectFilter)return false;
+    if(trFilter!=='all'&&l.meta.trNumber!==trFilter)return false;
+    if(wbsFilter!=='all'&&l.meta.wbs!==wbsFilter)return false;
+    return true;
+  });
+  const last30=trendBase.filter(l=>l.entryAt>=now-30*DAY);
+  const prev30=trendBase.filter(l=>l.entryAt>=now-60*DAY&&l.entryAt<now-30*DAY);
+  const sumKey=(arr,k)=>arr.reduce((a,l)=>a+(l[k]||0),0);
+  const pctChange=(curr,prev)=>{ if(prev===0) return curr===0?0:100; return ((curr-prev)/prev)*100; };
+  const trends={
+    track: pctChange(sumKey(last30,'trackCost'), sumKey(prev30,'trackCost')),
+    vehicle: pctChange(sumKey(last30,'vehicleCost'), sumKey(prev30,'vehicleCost')),
+    hours: pctChange(sumKey(last30,'billedHours'), sumKey(prev30,'billedHours')),
+  };
+  const trendChip=(pct)=>{
+    const rounded=Math.round(pct);
+    if(Math.abs(rounded)<1) return `<span class="kpi-trend kpi-trend-flat">→ steady (30d)</span>`;
+    const up=rounded>0;
+    return `<span class="kpi-trend ${up?'kpi-trend-up':'kpi-trend-down'}">${up?'↑':'↓'} ${Math.abs(rounded)}% vs prior 30d</span>`;
+  };
+  // KPIs — color-coded, with animated values and 30-day trend chips
   document.getElementById('kpi-cards').innerHTML=`
-    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Track cost</div><div class="kpi-icon kpi-icon-primary"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div></div><div class="kpi-value">${fmtINR(totals.track)}</div></div>
-    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Vehicle hire</div><div class="kpi-icon kpi-icon-muted"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div></div><div class="kpi-value">${fmtINR(totals.vehicle)}</div></div>
-    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Billed hours</div><div class="kpi-icon kpi-icon-muted"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div><div class="kpi-value mono">${totals.hours.toFixed(1)}<span class="text-muted" style="font-size:0.8rem;margin-left:0.25rem">hr</span></div></div>
-    <div class="kpi-card"><div class="flex items-center justify-between"><div class="kpi-label">Active engineers</div><div class="kpi-icon kpi-icon-muted"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div><div class="kpi-value mono">${engCount}</div></div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart1)"><div class="flex items-center justify-between"><div class="kpi-label">Track cost</div><div class="kpi-icon kpi-icon-primary"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div></div><div class="kpi-value" id="kv-track">₹0</div>${trendChip(trends.track)}</div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart3)"><div class="flex items-center justify-between"><div class="kpi-label">Vehicle hire</div><div class="kpi-icon kpi-icon-blue"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div></div><div class="kpi-value" id="kv-vehicle">₹0</div>${trendChip(trends.vehicle)}</div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart2)"><div class="flex items-center justify-between"><div class="kpi-label">Billed hours</div><div class="kpi-icon kpi-icon-green"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div><div class="kpi-value mono" id="kv-hours">0.0<span class="text-muted" style="font-size:0.8rem;margin-left:0.25rem">hr</span></div>${trendChip(trends.hours)}</div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart4)"><div class="flex items-center justify-between"><div class="kpi-label">Active engineers</div><div class="kpi-icon kpi-icon-purple"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div><div class="kpi-value mono" id="kv-eng">${engCount}</div><span class="kpi-trend kpi-trend-flat">on roster today</span></div>
   `;
+  animateKpiValues([
+    {id:'kv-track', end:totals.track, fmt:v=>fmtINR(v)},
+    {id:'kv-vehicle', end:totals.vehicle, fmt:v=>fmtINR(v)},
+    {id:'kv-hours', end:totals.hours, fmt:v=>`${v.toFixed(1)}<span class="text-muted" style="font-size:0.8rem;margin-left:0.25rem">hr</span>`},
+  ]);
   // Charts
   const activeTracksForDash=TRACKS.filter(t=>!DISABLED_TRACKS.has(t));
   const byTrack=activeTracksForDash.map(t=>{
@@ -1447,10 +1592,26 @@ function renderDashboard() {
     return {track:t,sessions:ss.length,cost:ss.reduce((a,l)=>a+(l.totalCost||0),0),hours:ss.reduce((a,l)=>a+(l.billedHours||0),0)};
   });
   const byProject=projects.map(p=>{const ls=filtered.filter(l=>l.meta.project===p);return{project:p,cost:ls.reduce((a,l)=>a+(l.totalCost||0),0),sessions:ls.length};}).sort((a,b)=>b.cost-a.cost).slice(0,6);
+  const categoryDefs=[{key:'2W',color:'#60a5fa'},{key:'PCR',color:'#e8a825'},{key:'Commercial',color:'#4ade80'}];
+  const byCategory=categoryDefs.map(c=>{
+    const ls=filtered.filter(l=>(l.meta.vehicleCategory||'PCR')===c.key);
+    return {category:c.key, color:c.color, sessions:ls.length, cost:ls.reduce((a,l)=>a+(l.totalCost||0),0)};
+  }).filter(c=>c.sessions>0);
+  // Quick-stat chips — extra at-a-glance context beyond the KPI cards
+  const topTrack=[...byTrack].sort((a,b)=>b.sessions-a.sessions)[0];
+  const topCategory=[...byCategory].sort((a,b)=>b.sessions-a.sessions)[0];
+  const avgPerSession=filtered.length?((totals.track+totals.vehicle)/filtered.length):0;
+  const avgHrsPerSession=filtered.length?(totals.hours/filtered.length):0;
+  document.getElementById('dash-chip-row').innerHTML=`
+    <div class="stat-chip" style="--chip-accent:var(--chart1)"><span class="stat-chip-dot">₹</span>Avg cost / session <b>${fmtINR(avgPerSession)}</b></div>
+    <div class="stat-chip" style="--chip-accent:var(--chart2)"><span class="stat-chip-dot">⏱</span>Avg billed hrs <b>${avgHrsPerSession.toFixed(2)}</b></div>
+    <div class="stat-chip" style="--chip-accent:var(--chart3)"><span class="stat-chip-dot">▣</span>Busiest track <b>${topTrack&&topTrack.sessions>0?`${topTrack.track} · ${topTrack.sessions}`:'—'}</b></div>
+    <div class="stat-chip" style="--chip-accent:var(--chart4)"><span class="stat-chip-dot">◆</span>Top category <b>${topCategory?`${topCategory.category} · ${topCategory.sessions}`:'—'}</b></div>
+  `;
   const chartColors=['#e8a825','#4ade80','#60a5fa','#c084fc','#f87171','#fb923c'];
   if(chartTrack) chartTrack.destroy();
   const ctx1=document.getElementById('chart-track').getContext('2d');
-  chartTrack=new Chart(ctx1,{type:'bar',data:{labels:activeTracksForDash,datasets:[{data:byTrack.map(d=>d.sessions),backgroundColor:byTrack.map(d=>d.sessions>0?'#e8a825':'#2a3147'),borderRadius:4}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw} sessions`}}},scales:{x:{ticks:{color:'#8892a4',font:{size:11}}},y:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#2e3650'}}},responsive:true,maintainAspectRatio:false}});
+  chartTrack=new Chart(ctx1,{type:'bar',data:{labels:activeTracksForDash,datasets:[{data:byTrack.map(d=>d.sessions),backgroundColor:byTrack.map((d,i)=>d.sessions>0?chartColors[i%chartColors.length]:'#2a3147'),borderRadius:6}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw} sessions`}}},scales:{x:{ticks:{color:'#8892a4',font:{size:11}}},y:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#2e3650'}}},responsive:true,maintainAspectRatio:false}});
   if(chartProject) chartProject.destroy();
   const canvas2=document.getElementById('chart-project');
   const placeholder=document.getElementById('chart-project-empty');
@@ -1458,11 +1619,24 @@ function renderDashboard() {
     canvas2.style.display='';
     if(placeholder) placeholder.style.display='none';
     const ctx2=canvas2.getContext('2d');
-    chartProject=new Chart(ctx2,{type:'doughnut',data:{labels:byProject.map(p=>p.project),datasets:[{data:byProject.map(p=>p.cost),backgroundColor:chartColors.slice(0,byProject.length),borderWidth:0}]},options:{plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtINR(ctx.raw)}`}}},responsive:true,maintainAspectRatio:false}});
+    chartProject=new Chart(ctx2,{type:'doughnut',data:{labels:byProject.map(p=>p.project),datasets:[{data:byProject.map(p=>p.cost),backgroundColor:chartColors.slice(0,byProject.length),borderWidth:0}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtINR(ctx.raw)}`}}},responsive:true,maintainAspectRatio:false}});
   } else {
     canvas2.style.display='none';
     if(placeholder) placeholder.style.display='';
     else canvas2.insertAdjacentHTML('afterend','<p id="chart-project-empty" class="text-muted text-sm" style="padding:1rem">No completed sessions yet.</p>');
+  }
+  if(chartCategory) chartCategory.destroy();
+  const canvas3=document.getElementById('chart-category');
+  const placeholder3=document.getElementById('chart-category-empty');
+  if(byCategory.length>0){
+    canvas3.style.display='';
+    if(placeholder3) placeholder3.style.display='none';
+    const ctx3=canvas3.getContext('2d');
+    chartCategory=new Chart(ctx3,{type:'doughnut',data:{labels:byCategory.map(c=>c.category),datasets:[{data:byCategory.map(c=>c.sessions),backgroundColor:byCategory.map(c=>c.color),borderWidth:0}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} sessions (${fmtINR(byCategory[ctx.dataIndex].cost)})`}}},responsive:true,maintainAspectRatio:false}});
+  } else {
+    canvas3.style.display='none';
+    if(placeholder3) placeholder3.style.display='';
+    else canvas3.insertAdjacentHTML('afterend','<p id="chart-category-empty" class="text-muted text-sm" style="padding:1rem">No completed sessions yet.</p>');
   }
   // Heatmap
   const max=Math.max(1,...byTrack.map(d=>d.sessions));
@@ -1476,19 +1650,38 @@ function renderDashboard() {
       <div class="mono" style="font-size:0.875rem;font-weight:700;margin-top:0.25rem;color:${fc}">${d.sessions}</div>
     </div>`;
   }).join('');
+  // Cache for PDF export so the report matches exactly what's on screen
+  lastDashboardSnapshot={filtered, totals, byTrack, byProject, byCategory, engCount,
+    filters:{projectFilter,trFilter,wbsFilter,monthFilter,quarter}};
   // Recent
   document.getElementById('dash-total').textContent=`${filtered.length} total`;
   if(filtered.length===0){document.getElementById('dash-recent-table').innerHTML='<div class="empty-state">No completed sessions match these filters.</div>';return;}
   document.getElementById('dash-recent-table').innerHTML=`<table>
-    <thead><tr><th>Date</th><th>Engineer</th><th>Track</th><th>Project</th><th>Vehicle</th><th class="text-right">Billed hr</th><th class="text-right">Total</th></tr></thead>
+    <thead><tr><th>Date</th><th>Engineer</th><th>Track</th><th>Project</th><th>WBS</th><th>Vehicle</th><th class="text-right">Billed hr</th><th class="text-right">Total</th></tr></thead>
     <tbody>${filtered.slice(0,10).map(l=>`<tr>
       <td class="mono text-xs">${fmtDate(l.entryAt)}</td><td>${l.engineerName}</td>
       <td><span class="mono font-semibold text-primary">${l.track}</span></td>
-      <td>${l.meta.project}</td><td class="text-xs">${l.meta.vehicleMake} ${l.meta.vehicleModel}</td>
+      <td>${l.meta.project}</td><td class="text-xs">${l.meta.wbs||'—'}</td><td class="text-xs">${l.meta.vehicleMake} ${l.meta.vehicleModel}</td>
       <td class="text-right mono">${(l.billedHours||0).toFixed(2)}</td>
       <td class="text-right mono font-semibold">${fmtINR(l.totalCost)}</td>
     </tr>`).join('')}</tbody>
   </table>`;
+}
+
+function animateKpiValues(specs) {
+  specs.forEach(s=>{
+    const el=document.getElementById(s.id);
+    if(!el) return;
+    const duration=650, startTime=performance.now();
+    function step(t){
+      const p=Math.min(1,(t-startTime)/duration);
+      const eased=1-Math.pow(1-p,3);
+      el.innerHTML=s.fmt(s.end*eased);
+      if(p<1) requestAnimationFrame(step);
+      else el.innerHTML=s.fmt(s.end);
+    }
+    requestAnimationFrame(step);
+  });
 }
 
 // ──────────────────────────────────────────────────────
@@ -1501,15 +1694,31 @@ function renderLogs() {
   if(engEl) engEl.innerHTML='<option value="all">All engineers</option>'+engineers.map(u=>`<option value="${u.id}"${prevEng===u.id?' selected':''}>${u.name}</option>`).join('');
   const trEl=document.getElementById('log-filter-track');
   if(trEl&&trEl.options.length===1) trEl.innerHTML='<option value="all">All tracks</option>'+TRACKS.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const trNumbers=[...new Set(state.logs.map(l=>l.meta.trNumber).filter(Boolean))].sort();
+  const trNumEl=document.getElementById('log-filter-tr');
+  if(trNumEl) {
+    const prevTr=trNumEl.value;
+    trNumEl.innerHTML='<option value="all">All TR numbers</option>'+trNumbers.map(t=>`<option value="${t}"${prevTr===t?' selected':''}>TR-${t}</option>`).join('');
+  }
+  const wbsList=[...new Set(state.logs.map(l=>l.meta.wbs).filter(Boolean))].sort();
+  const wbsEl=document.getElementById('log-filter-wbs');
+  if(wbsEl) {
+    const prevWbs=wbsEl.value;
+    wbsEl.innerHTML='<option value="all">All WBS</option>'+wbsList.map(w=>`<option value="${w}"${prevWbs===w?' selected':''}>${w}</option>`).join('');
+  }
   const q=(document.getElementById('log-search')?.value||'').toLowerCase();
   const eng=document.getElementById('log-filter-eng')?.value||'all';
   const track=document.getElementById('log-filter-track')?.value||'all';
+  const trFilter=document.getElementById('log-filter-tr')?.value||'all';
+  const wbsFilter=document.getElementById('log-filter-wbs')?.value||'all';
   const cat=document.getElementById('log-filter-cat')?.value||'all';
   const status=document.getElementById('log-filter-status')?.value||'all';
   const filtered=state.logs.filter(l=>{
-    if(q&&!`${l.meta.project} ${l.meta.trNumber} ${l.meta.vehicleMake} ${l.meta.vehicleModel}`.toLowerCase().includes(q))return false;
+    if(q&&!`${l.meta.project} ${l.meta.trNumber} ${l.meta.wbs} ${l.meta.vehicleMake} ${l.meta.vehicleModel}`.toLowerCase().includes(q))return false;
     if(eng!=='all'&&l.engineerId!==eng)return false;
     if(track!=='all'&&l.track!==track)return false;
+    if(trFilter!=='all'&&l.meta.trNumber!==trFilter)return false;
+    if(wbsFilter!=='all'&&l.meta.wbs!==wbsFilter)return false;
     if(cat!=='all'&&l.meta.vehicleCategory!==cat)return false;
     if(status!=='all'&&l.status!==status)return false;
     return true;
@@ -1518,7 +1727,7 @@ function renderLogs() {
   if(filtered.length===0){wrap.innerHTML='<div class="empty-state">No logs match these filters.</div>';return;}
   wrap.innerHTML=`<table>
     <thead><tr>
-      <th>Date</th><th>Engineer</th><th>Track</th><th>TR</th><th>Project</th>
+      <th>Date</th><th>Engineer</th><th>Track</th><th>TR</th><th>Project</th><th>WBS</th>
       <th>Vehicle</th><th>Cat</th><th>In</th><th>Out</th>
       <th class="text-right">Billed hr</th><th class="text-right">Total</th>
       <th>Status</th><th>Sync</th><th>Actions</th>
@@ -1529,6 +1738,7 @@ function renderLogs() {
       <td><span class="mono font-semibold text-primary">${l.track}</span></td>
       <td class="mono text-xs">${l.meta.trNumber?`TR-${new Date(l.entryAt).getFullYear()}-${l.meta.trNumber}`:'—'}</td>
       <td>${l.meta.project}</td>
+      <td class="text-xs">${l.meta.wbs||'—'}</td>
       <td class="text-xs">${l.meta.vehicleMake} ${l.meta.vehicleModel}</td>
       <td class="text-xs">${l.meta.vehicleCategory}</td>
       <td class="mono text-xs">${fmtTime(l.entryAt)}</td>
@@ -1551,18 +1761,24 @@ function renderLogs() {
 }
 
 function autoClose(logId) {
+  let closedLog=null;
   state.logs=state.logs.map(l=>{
     if(l.id!==logId)return l;
     const closed={...l,exitAt:l.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
-    return {...closed,...computeBilling(closed)};
+    closedLog={...closed,...computeBilling(closed)};
+    return closedLog;
   });
-  saveState(); renderLogs(); updateSyncBadge(); flushPendingLogSyncs(); toast('Auto-closed');
+  saveState(); renderLogs(); updateSyncBadge();
+  if(closedLog) pushLog(closedLog);
+  toast('Auto-closed');
 }
 
-function deleteLog(logId) {
+async function deleteLog(logId) {
   if(!confirm('Delete this log entry?'))return;
   state.logs=state.logs.filter(l=>l.id!==logId);
-  saveState(); renderLogs(); updateSyncBadge(); toast('Deleted');
+  saveState(); renderLogs(); updateSyncBadge();
+  try { await db.collection('logs').doc(logId).delete(); } catch(e){ console.warn('deleteLog error', e); }
+  toast('Deleted');
 }
 
 function openEditLog(logId) {
@@ -1572,6 +1788,7 @@ function openEditLog(logId) {
   const trackSel=document.getElementById('edit-track');
   trackSel.innerHTML=TRACKS.map(t=>`<option value="${t}"${log.track===t?' selected':''}>${t}</option>`).join('');
   document.getElementById('edit-project').value=log.meta.project;
+  document.getElementById('edit-wbs').value=log.meta.wbs||'';
   document.getElementById('edit-time-in').value=dtLocal(log.entryAt);
   document.getElementById('edit-time-out').value=log.exitAt?dtLocal(log.exitAt):'';
   document.getElementById('edit-status').value=log.status;
@@ -1585,24 +1802,28 @@ function saveEditLog() {
     entryAt:new Date(document.getElementById('edit-time-in').value).getTime(),
     exitAt:document.getElementById('edit-time-out').value?new Date(document.getElementById('edit-time-out').value).getTime():undefined,
     status:document.getElementById('edit-status').value,
-    meta:{project:document.getElementById('edit-project').value},
+    meta:{project:document.getElementById('edit-project').value,wbs:document.getElementById('edit-wbs').value},
   };
+  let editedLog=null;
   state.logs=state.logs.map(l=>{
     if(l.id!==logId)return l;
     const merged={...l,...patch,meta:{...l.meta,...patch.meta},sync:'pending'};
     if(merged.exitAt) Object.assign(merged,computeBilling(merged));
+    editedLog=merged;
     return merged;
   });
-  saveState(); closeModal('modal-edit-log'); renderLogs(); flushPendingLogSyncs(); toast('Log updated');
+  saveState(); closeModal('modal-edit-log'); renderLogs();
+  if(editedLog) pushLog(editedLog);
+  toast('Log updated');
 }
 
 // ──────────────────────────────────────────────────────
 // EXPORT CSV
 // ──────────────────────────────────────────────────────
 function exportCSV() {
-  const headers=['Date','Engineer','Track','TR','Project','Make','Model','Cat','RFID','TimeIn','TimeOut','Hours','BilledHrs','TrackCost','VehicleCost','Total','Status'];
+  const headers=['Date','Engineer','Track','TR','Project','WBS','Make','Model','Cat','RFID','TimeIn','TimeOut','Hours','BilledHrs','TrackCost','VehicleCost','Total','Status'];
   const rows=state.logs.map(l=>[
-    fmtDate(l.entryAt),l.engineerName,l.track,l.meta.trNumber,l.meta.project,
+    fmtDate(l.entryAt),l.engineerName,l.track,l.meta.trNumber,l.meta.project,l.meta.wbs,
     l.meta.vehicleMake,l.meta.vehicleModel,l.meta.vehicleCategory,l.meta.rfid,
     fmtTime(l.entryAt),l.exitAt?fmtTime(l.exitAt):'',
     l.exitAt?fmtHM(l.exitAt-l.entryAt):'',
@@ -1614,6 +1835,151 @@ function exportCSV() {
   a.download=`natrax-timesheet-${Date.now()}.csv`;
   a.click(); URL.revokeObjectURL(a.href);
   toast('Timesheet exported ✓');
+}
+
+// ──────────────────────────────────────────────────────
+// EXPORT PDF — rich Operations Dashboard report
+// ──────────────────────────────────────────────────────
+function canvasToWhiteBgDataURL(canvas) {
+  const off=document.createElement('canvas');
+  off.width=canvas.width; off.height=canvas.height;
+  const ctx=off.getContext('2d');
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,off.width,off.height);
+  ctx.drawImage(canvas,0,0);
+  return off.toDataURL('image/png',1.0);
+}
+
+function exportDashboardPDF() {
+  if(!window.jspdf||!window.jspdf.jsPDF){ toast('PDF library failed to load — check your connection','error'); return; }
+  if(!lastDashboardSnapshot) renderDashboard();
+  const snap=lastDashboardSnapshot;
+  if(!snap||snap.filtered.length===0){ toast('No completed sessions match these filters','error'); return; }
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const pageW=doc.internal.pageSize.getWidth();
+  const pageH=doc.internal.pageSize.getHeight();
+  const C={amber:[232,168,37],green:[74,222,128],blue:[96,165,250],purple:[192,132,252],red:[248,113,113],ink:[26,31,46],muted:[100,110,130],paper:[248,249,250]};
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  function drawHeader(title){
+    doc.setFillColor(...C.amber);
+    doc.rect(0,0,pageW,16,'F');
+    doc.setTextColor(...C.ink);
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('NATRAX Track Logger', 10, 7);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text(title, 10, 12.5);
+    doc.setFontSize(8);
+    doc.text(`Generated ${new Date().toLocaleString('en-IN')}`, pageW-10, 12.5, {align:'right'});
+  }
+  function drawFilterLine(y){
+    const f=snap.filters;
+    const bits=[];
+    if(f.projectFilter!=='all') bits.push(`Project: ${f.projectFilter}`);
+    if(f.trFilter!=='all') bits.push(`TR: TR-${f.trFilter}`);
+    if(f.wbsFilter!=='all') bits.push(`WBS: ${f.wbsFilter}`);
+    if(f.monthFilter!=='all') bits.push(monthNames[Number(f.monthFilter)]);
+    if(f.quarter!=='all') bits.push(f.quarter.toUpperCase());
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.muted);
+    doc.text(`Filters — ${bits.length?bits.join('  ·  '):'All sessions'}`, 10, y);
+  }
+
+  // ── Page 1: summary ──
+  drawHeader('Operations Report');
+  drawFilterLine(23);
+  let y=30;
+
+  const kpis=[
+    {label:'Track cost', value:fmtINR(snap.totals.track), color:C.amber},
+    {label:'Vehicle hire', value:fmtINR(snap.totals.vehicle), color:C.blue},
+    {label:'Billed hours', value:`${snap.totals.hours.toFixed(1)} hr`, color:C.green},
+    {label:'Active engineers', value:String(snap.engCount), color:C.purple},
+    {label:'Sessions', value:String(snap.filtered.length), color:C.red},
+  ];
+  const boxGap=4, boxW=(pageW-20-boxGap*(kpis.length-1))/kpis.length, boxH=20;
+  kpis.forEach((k,i)=>{
+    const x=10+i*(boxW+boxGap);
+    doc.setFillColor(...C.paper);
+    doc.setDrawColor(...k.color);
+    doc.roundedRect(x,y,boxW,boxH,1.5,1.5,'FD');
+    doc.setFillColor(...k.color);
+    doc.rect(x,y,boxW,1.4,'F');
+    doc.setTextColor(...C.muted);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    doc.text(k.label.toUpperCase(), x+3, y+8);
+    doc.setTextColor(...C.ink);
+    doc.setFont('helvetica','bold'); doc.setFontSize(12.5);
+    doc.text(k.value, x+3, y+16);
+  });
+  y+=boxH+10;
+
+  const chartGap=6, chartW=(pageW-20-chartGap)/2, chartH=58;
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.muted);
+  if(chartTrack){
+    doc.text('SESSIONS PER TRACK', 10, y);
+    doc.addImage(canvasToWhiteBgDataURL(chartTrack.canvas),'PNG',10,y+2,chartW,chartH);
+  }
+  if(chartProject){
+    doc.text('SPEND BY PROJECT', 10+chartW+chartGap, y);
+    doc.addImage(canvasToWhiteBgDataURL(chartProject.canvas),'PNG',10+chartW+chartGap,y+2,chartW,chartH);
+  }
+  y+=chartH+12;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.ink);
+  doc.text('Track utilisation', 10, y);
+  doc.autoTable({
+    startY:y+3,
+    margin:{left:10,right:10},
+    head:[['Track','Sessions','Billed hr','Cost']],
+    body:snap.byTrack.filter(d=>d.sessions>0).map(d=>[d.track,String(d.sessions),d.hours.toFixed(2),fmtINR(d.cost)]),
+    theme:'striped',
+    headStyles:{fillColor:C.amber, textColor:C.ink},
+    styles:{fontSize:8, cellPadding:2},
+    columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
+  });
+
+  // ── Page 2: session detail ──
+  doc.addPage();
+  drawHeader('Session Detail');
+  drawFilterLine(23);
+  doc.autoTable({
+    startY:28,
+    margin:{left:10,right:10},
+    head:[['Date','Engineer','Track','TR','Project','WBS','Vehicle','Cat','Billed hr','Total','Status']],
+    body:snap.filtered.map(l=>[
+      fmtDate(l.entryAt), l.engineerName, l.track,
+      l.meta.trNumber?`TR-${l.meta.trNumber}`:'—',
+      l.meta.project||'—', l.meta.wbs||'—',
+      `${l.meta.vehicleMake||''} ${l.meta.vehicleModel||''}`.trim()||'—',
+      l.meta.vehicleCategory||'—',
+      (l.billedHours||0).toFixed(2),
+      fmtINR(l.totalCost),
+      l.status,
+    ]),
+    theme:'striped',
+    headStyles:{fillColor:C.ink, textColor:[255,255,255]},
+    styles:{fontSize:7.5, cellPadding:1.7},
+    columnStyles:{8:{halign:'right'},9:{halign:'right'}},
+    didParseCell:(data)=>{
+      if(data.section==='body'&&data.column.index===10){
+        const v=data.cell.raw;
+        if(v==='complete') data.cell.styles.textColor=C.green;
+        else if(v==='open') data.cell.styles.textColor=C.amber;
+        else if(v==='auto-closed') data.cell.styles.textColor=C.red;
+      }
+    },
+  });
+
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.muted);
+    doc.text(`NATRAX Track Logger · Page ${i} of ${pageCount}`, pageW/2, pageH-6, {align:'center'});
+  }
+
+  doc.save(`natrax-operations-report-${Date.now()}.pdf`);
+  toast('PDF report exported ✓');
 }
 
 // ──────────────────────────────────────────────────────
@@ -1635,9 +2001,18 @@ function updateBilling(track, cat, val) { state.billing.minHours[track][cat]=Num
 function updateBillingRate(track, type, val) { state.billing.rates[track][type]=Number(val); }
 async function saveBilling() {
   saveState();
-  toast('Saving and syncing to team sheet…');
-  const ok = await pushConfigToSheet();
-  toast(ok ? 'Billing config saved ✓ (synced to team sheet)' : 'Saved locally — sheet sync failed, will retry next load', ok ? 'success' : 'error');
+  toast('Saving to Firebase…');
+  try {
+    await db.collection('config').doc('billing').set({
+      minHours: state.billing.minHours,
+      rates: state.billing.rates,
+      updatedAt: Date.now(),
+    }, { merge: true });
+    toast('Billing config saved ✓ (live for every device)');
+  } catch (e) {
+    console.warn('saveBilling error', e);
+    toast('Saved locally — will sync automatically once online', 'error');
+  }
 }
 
 // ──────────────────────────────────────────────────────
@@ -1653,10 +2028,17 @@ function renderVehicles() {
 function updateVehicleClassRate(cls, val) { state.vehicleClassRates[cls]=Number(val)||0; }
 async function saveVehicleRates() {
   saveState();
-  toast('Saving and syncing to team sheet…');
-  const ok = await pushConfigToSheet();
-  updateSyncBadge();
-  toast(ok ? 'Vehicle class rates saved ✓ (synced to team sheet)' : 'Saved locally — sheet sync failed, will retry automatically', ok ? 'success' : 'error');
+  toast('Saving to Firebase…');
+  try {
+    await db.collection('config').doc('billing').set({
+      vehicleClassRates: state.vehicleClassRates,
+      updatedAt: Date.now(),
+    }, { merge: true });
+    toast('Vehicle class rates saved ✓ (live for every device)');
+  } catch (e) {
+    console.warn('saveVehicleRates error', e);
+    toast('Saved locally — will sync automatically once online', 'error');
+  }
 }
 
 // ──────────────────────────────────────────────────────
@@ -1689,27 +2071,36 @@ function updateCredLabel() {
   document.getElementById('u-cred-label').textContent=role==='engineer'?'PIN (4–6 digits)':'Password';
 }
 
+async function pushUser(user) {
+  try {
+    await db.collection('users').doc(user.id).set(user);
+    return true;
+  } catch (e) {
+    console.warn('pushUser error', e);
+    return false;
+  }
+}
+
 async function addUser() {
   const name=document.getElementById('u-name').value.trim();
   const role=document.getElementById('u-role').value;
   const cred=document.getElementById('u-cred').value;
   if(!name||!cred){toast('Enter name and credential','error');return;}
-  state.users.push({id:uid(),name,role,active:true,createdAt:Date.now(),...(role==='engineer'?{pin:cred}:{password:cred})});
+  const newUser={id:uid(),name,role,active:true,createdAt:Date.now(),...(role==='engineer'?{pin:cred}:{password:cred})};
+  state.users.push(newUser);
   document.getElementById('u-name').value='';
   document.getElementById('u-cred').value='';
   saveState(); renderUsers();
-  toast('User created — syncing to team sheet…');
-  const ok = await pushConfigToSheet();
-  updateSyncBadge();
-  toast(ok ? 'User synced to team sheet ✓' : 'User saved locally — sheet sync failed, will retry automatically', ok ? 'success' : 'error');
+  toast('Creating user…');
+  const ok = await pushUser(newUser);
+  toast(ok ? 'User created ✓ (live for every device)' : 'Saved locally — will sync automatically once online', ok ? 'success' : 'error');
 }
 
 async function toggleUser(id) {
   state.users=state.users.map(u=>u.id===id?{...u,active:!u.active}:u);
   saveState(); renderUsers();
-  const ok = await pushConfigToSheet();
-  updateSyncBadge();
-  if (!ok) toast('Saved locally — sheet sync failed, will retry automatically', 'error');
+  const ok = await pushUser(state.users.find(u=>u.id===id));
+  if (!ok) toast('Saved locally — will sync automatically once online', 'error');
 }
 
 async function resetCred(id, role) {
@@ -1717,9 +2108,8 @@ async function resetCred(id, role) {
   if(!val)return;
   state.users=state.users.map(u=>u.id===id?{...u,...(u.role==='engineer'?{pin:val}:{password:val})}:u);
   saveState(); renderUsers();
-  const ok = await pushConfigToSheet();
-  updateSyncBadge();
-  toast(ok ? 'Credential reset ✓ (synced to team sheet)' : 'Reset locally — sheet sync failed, will retry automatically', ok ? 'success' : 'error');
+  const ok = await pushUser(state.users.find(u=>u.id===id));
+  toast(ok ? 'Credential reset ✓ (live for every device)' : 'Reset locally — will sync automatically once online', ok ? 'success' : 'error');
 }
 
 // ──────────────────────────────────────────────────────
@@ -1727,398 +2117,141 @@ async function resetCred(id, role) {
 // ──────────────────────────────────────────────────────
 function checkAutoClose() {
   const now=Date.now();
-  let changed=false;
+  const closedLogs=[];
   state.logs=state.logs.map(l=>{
     if(l.status!=='open')return l;
     if(now-l.entryAt>=2*3600_000) {
-      changed=true;
       const closed={...l,exitAt:l.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
-      return {...closed,...computeBilling(closed)};
+      const merged={...closed,...computeBilling(closed)};
+      closedLogs.push(merged);
+      return merged;
     }
     return l;
   });
-  if(changed){saveState();renderPageContent(currentPage);updateSyncBadge();flushPendingLogSyncs();toast('Open sessions auto-closed after 2 hours');}
+  if(closedLogs.length){
+    saveState();renderPageContent(currentPage);updateSyncBadge();
+    closedLogs.forEach(pushLog);
+    toast('Open sessions auto-closed after 2 hours');
+  }
 }
 setInterval(checkAutoClose,5*60*1000);
 
 // ──────────────────────────────────────────────────────
-// BACKGROUND-SAFE SYNC
+// FIREBASE INIT + LIVE LISTENERS
 // ──────────────────────────────────────────────────────
-// Track entry/exit are already pushed the instant they happen (see
-// startLog/closeLog above), so there is normally nothing left to flush
-// by the time the app backgrounds. These are the safety nets for the
-// cases where that instant push failed (offline, cold Apps Script,
-// flaky signal on the high-speed loop) or the app never got a chance
-// to run its JS again (killed outright).
-
-// 1. Periodic retry while the app stays open/foregrounded — catches
-//    anything an instant push failed to land, without waiting for the
-//    user to background the app or manually hit "Sync now".
-setInterval(() => { if (state.gsUrl) flushPendingLogSyncs(); }, 30*1000);
-
-// 2. Reconnect — the moment the device gets network back, retry.
-window.addEventListener('online', () => { if (state.gsUrl) flushPendingLogSyncs(); });
-
-// 3. Reopen/foreground — re-check on every return to the app. This is
-//    the "refresh on reopening" behaviour: retry anything still pending
-//    locally, then re-pull config/logs so the app reflects the latest
-//    shared state even if it sat backgrounded/killed for a while.
-window.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    flushPendingLogSyncs();
-    syncFromSheetOnLoad();
-  } else {
-    flushPendingBeacon();
+// This replaces the old Google Sheets "pull on load / push on save /
+// periodic flush / sendBeacon on background" machinery entirely.
+// Firestore keeps a live, real-time connection open: onSnapshot() fires
+// immediately with local/cached data, then again the instant a change
+// (from this device OR any other) reaches Firestore. Combined with
+// enablePersistence() below, that also covers the offline case — writes
+// made offline sit in Firestore's own local queue and flush themselves
+// the moment connectivity returns. No manual retry timers, no
+// visibilitychange/pagehide/online listeners, no sendBeacon fallback.
+function initFirebase() {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  } catch (e) {
+    console.error('Firebase init failed — check firebaseConfig', e);
+    fbStatus = 'error';
+    updateSyncBadge();
+    return;
   }
-});
-
-// 4. pagehide (iOS's reliable "about to be killed/backgrounded" signal,
-//    fires before beforeunload on mobile Safari) and every 'hidden'
-//    visibilitychange (switching apps, locking the screen, etc). This
-//    ONLY pushes whatever is already marked pending — it must NEVER
-//    close an open session. Backgrounding is extremely common (a phone
-//    call, checking another app, screen auto-lock) and is not the same
-//    as the user choosing to end their session; ending a session is a
-//    deliberate action the engineer takes with the "End Session" button.
-//    The only place a session gets closed without that button is the
-//    real 2-hour idle timeout in checkAutoClose(), which checks actual
-//    elapsed time on its own 5-minute interval — independent of whether
-//    the tab happens to be hidden at that moment.
-function flushPendingBeacon() {
-  if (!state.gsUrl) return;
-  const toSync = state.logs.filter(l => l.sync === 'pending');
-  toSync.forEach(l => {
-    const row = [
-      l.id, l.sessionId,
-      fmtDate(l.entryAt), l.engineerName, l.track,
-      l.meta.trNumber, l.meta.project,
-      l.meta.vehicleMake, l.meta.vehicleModel,
-      l.meta.vehicleClass, l.meta.vehicleCategory, l.meta.rfid, l.meta.vehicleReg,
-      fmtTime(l.entryAt), l.exitAt ? fmtTime(l.exitAt) : '',
-      (l.actualHours||0).toFixed(2), (l.billedHours||0).toFixed(2),
-      (l.trackCost||0).toFixed(0), (l.vehicleCost||0).toFixed(0), (l.totalCost||0).toFixed(0),
-      l.status,
-    ];
-    try {
-      navigator.sendBeacon(
-        state.gsUrl,
-        new Blob([JSON.stringify({action:'appendRow', sheetName:'Logs', row})],
-          {type:'text/plain;charset=utf-8'})
-      );
-    } catch(e) {
-      // sendBeacon fallback — keepalive fetch
-      fetch(state.gsUrl, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify({action:'appendRow', sheetName:'Logs', row}),
-        keepalive: true,
-      }).catch(()=>{});
-    }
+  db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+    // Fails in some older browsers or when a tab already holds the lock
+    // without synchronizeTabs support — app still works, just without
+    // the offline cache surviving a full page reload.
+    console.warn('Firestore offline persistence unavailable', err);
+  });
+  fbAuth = firebase.auth();
+  fbAuth.onAuthStateChanged(user => {
+    if (user) attachFirestoreListeners();
+  });
+  // Anonymous auth just satisfies "request.auth != null" in the security
+  // rules below — engineers/managers/admins still sign in with their own
+  // PIN/password against the `users` collection, same as before. This is
+  // NOT that per-user login; it's a single technical credential the
+  // browser tab uses to talk to Firestore at all.
+  fbAuth.signInAnonymously().catch(err => {
+    console.error('Anonymous sign-in failed', err);
+    fbStatus = 'error';
+    updateSyncBadge();
   });
 }
-window.addEventListener('pagehide', flushPendingBeacon);
 
+function attachFirestoreListeners() {
+  if (unsubUsers) unsubUsers();
+  if (unsubLogs) unsubLogs();
+  if (unsubBilling) unsubBilling();
 
-// Paste this into Apps Script in your Google Sheet:
-/*
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let configUpdatedAt = null;
-    if (data.action === 'appendRow') {
-      const sheet = ss.getSheetByName(data.sheetName) || ss.insertSheet(data.sheetName);
-      const idToFind = String(data.row[0]);
-      const lastRow = sheet.getLastRow();
-      let foundRow = -1;
-      if (lastRow >= 2) {
-        const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat().map(String);
-        const idx = ids.indexOf(idToFind);
-        if (idx !== -1) foundRow = idx + 2;
-      }
-      const row = data.row.slice();
-      if (data.sheetName === 'Logs') {
-        // Force Date/TimeIn/TimeOut (indices 2,13,14) to stay plain text —
-        // otherwise Sheets auto-converts them to real Date/Time cells,
-        // which round-trip through JSON as ISO strings and silently
-        // reset the time to midnight on the next pull. See gappscript.gs.
-        [2, 13, 14].forEach(i => {
-          if (typeof row[i] === 'string' && row[i] !== '' && row[i][0] !== "'") row[i] = "'" + row[i];
-        });
-      }
-      if (foundRow > 0) { sheet.getRange(foundRow, 1, 1, row.length).setValues([row]); }
-      else { sheet.appendRow(row); }
-    }
-    if (data.action === 'saveConfig') {
-      const sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
-      const now = new Date();
-      sheet.getRange('A1').setValue(JSON.stringify(data.config));
-      sheet.getRange('B1').setValue(now);
-      configUpdatedAt = now.getTime();
-    }
-    return ContentService.createTextOutput(JSON.stringify({ok:true,updatedAt:configUpdatedAt})).setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ok:false,error:err.toString()})).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-function doGet(e) {
-  if (e.parameter.action === 'ping') {
-    return ContentService.createTextOutput(JSON.stringify({ok:true,ping:'pong'})).setMimeType(ContentService.MimeType.JSON);
-  }
-  if (e.parameter.action === 'getLogs') {
-    const sheetName = e.parameter.sheetName || 'Logs';
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(sheetName);
-    if (!sheet) return ContentService.createTextOutput(JSON.stringify({ok:true,rows:[]})).setMimeType(ContentService.MimeType.JSON);
-    const values = sheet.getDataRange().getValues();
-    const rows = values.slice(1).filter(r => r.some(c => c !== '' && c !== null));
-    return ContentService.createTextOutput(JSON.stringify({ok:true,rows:rows})).setMimeType(ContentService.MimeType.JSON);
-  }
-  if (e.parameter.action === 'getConfig') {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('Config');
-    if (!sheet) return ContentService.createTextOutput(JSON.stringify({ok:true,config:null})).setMimeType(ContentService.MimeType.JSON);
-    const raw = sheet.getRange('A1').getValue();
-    return ContentService.createTextOutput(JSON.stringify({ok:true,config:raw?JSON.parse(raw):null})).setMimeType(ContentService.MimeType.JSON);
-  }
-  return ContentService.createTextOutput('NATRAX Logger API');
-}
-*/
+  unsubUsers = db.collection('users').onSnapshot({ includeMetadataChanges: true }, snap => {
+    fbStatus = snap.metadata.fromCache ? 'offline' : 'online';
+    if (!snap.empty) state.users = snap.docs.map(d => d.data());
+    saveState();
+    updateSyncBadge();
+    if (currentPage) renderPageContent(currentPage);
+  }, err => { console.error('users listener error', err); fbStatus = 'error'; updateSyncBadge(); });
 
-// ──────────────────────────────────────────────────────
-// PULL FROM SHEET (shared backend → local state)
-// ──────────────────────────────────────────────────────
-// Runs on every load so a brand-new device/browser session recovers
-// existing logs and the team's shared billing config from the Google
-// Sheet, instead of starting from blank defaults. Silently no-ops if
-// offline or unreachable — local state (and localStorage) still works.
-function parseSheetDateTime(dateVal, timeVal) {
-  // Apps Script getValues() returns Date objects for date cells,
-  // fractional numbers for time cells, or plain strings for text cells.
-  let d;
-  if (dateVal instanceof Date) {
-    d = new Date(dateVal.getTime());
-  } else if (typeof dateVal === 'number') {
-    d = new Date(dateVal); // epoch ms
-  } else {
-    if (!dateVal) return null;
-    d = new Date(dateVal);
-  }
-  if (isNaN(d.getTime())) return null;
+  unsubLogs = db.collection('logs').onSnapshot({ includeMetadataChanges: true }, snap => {
+    fbStatus = snap.metadata.fromCache ? 'offline' : 'online';
+    // Per-doc hasPendingWrites drives the same "pending"/"synced" badge
+    // the old sync:'pending' flag used to — it's just sourced from
+    // Firestore's own write queue now instead of a flag we track by hand.
+    state.logs = snap.docs
+      .map(d => ({ ...d.data(), sync: d.metadata.hasPendingWrites ? 'pending' : 'synced' }))
+      .sort((a, b) => b.entryAt - a.entryAt);
+    saveState();
+    updateSyncBadge();
+    if (currentPage === 'log') { renderTrackGrid(); renderTodayLogs(); updateSessionStatus(); }
+    else if (currentPage) renderPageContent(currentPage);
+  }, err => { console.error('logs listener error', err); fbStatus = 'error'; updateSyncBadge(); });
 
-  if (timeVal !== undefined && timeVal !== null && timeVal !== '') {
-    if (typeof timeVal === 'number') {
-      // Fractional day (e.g. 0.652 = 15:40): multiply by 86400s
-      const totalSecs = Math.round(timeVal * 86400);
-      const h = Math.floor(totalSecs / 3600);
-      const m = Math.floor((totalSecs % 3600) / 60);
-      d.setHours(h, m, 0, 0);
-    } else if (timeVal instanceof Date) {
-      d.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
+  unsubBilling = db.collection('config').doc('billing').onSnapshot(snap => {
+    if (snap.exists) {
+      const cfg = snap.data();
+      if (cfg.minHours) state.billing.minHours = cfg.minHours;
+      if (cfg.rates) state.billing.rates = cfg.rates;
+      if (cfg.vehicleClassRates) state.vehicleClassRates = cfg.vehicleClassRates;
+      state.billing.configUpdatedAt = cfg.updatedAt || Date.now();
     } else {
-      const s = String(timeVal);
-      // Sheets sometimes auto-converts a "14:35"-looking string into a
-      // real time cell; once that round-trips through Apps Script's
-      // JSON response, it arrives here as an ISO datetime string like
-      // "1899-12-30T09:05:00.000Z" instead of "14:35". A plain
-      // h:m split on that produces NaN and used to silently skip
-      // setHours(), leaving the time at midnight. Catch that shape here
-      // as a fallback for any already-written rows — going forward,
-      // the backend forces these columns to stay plain text so this
-      // branch shouldn't normally be needed for new rows.
-      const iso = s.match(/T(\d{2}):(\d{2})/);
-      if (iso) {
-        d.setUTCHours(Number(iso[1]), Number(iso[2]), 0, 0);
-      } else {
-        const [h, m] = s.split(':').map(Number);
-        if (!isNaN(h)) d.setHours(h, isNaN(m) ? 0 : m, 0, 0);
-      }
+      // First run on a brand-new Firebase project — seed it with the
+      // built-in defaults so every device shares the same starting point.
+      seedFirestoreDefaults();
     }
-  }
-  return d.getTime();
+    saveState();
+    updateSyncBadge();
+    if (currentPage === 'billing') renderBilling();
+    if (currentPage === 'vehicles') renderVehicles();
+  }, err => { console.error('billing listener error', err); fbStatus = 'error'; updateSyncBadge(); });
+
+  // Seed the users collection too, if this is a brand-new project.
+  db.collection('users').get().then(snap => {
+    if (snap.empty) {
+      const batch = db.batch();
+      seedState().users.forEach(u => batch.set(db.collection('users').doc(u.id), u));
+      batch.commit().catch(e => console.warn('Seed users failed', e));
+    }
+  }).catch(e => console.warn('Users existence check failed', e));
 }
 
-function rowToLog(row) {
-  // Column order matches syncLogToSheets(): id, sessionId, date, engineer,
-  // track, trNumber, project, make, model, class, category, rfid, reg,
-  // timeIn, timeOut, actualHrs, billedHrs, trackCost, vehicleCost,
-  // totalCost, status  (no odometer columns — see migration note below)
-  const [id, sessionId, date, engineerName, track, trNumber, project,
-    vehicleMake, vehicleModel, vehicleClass, vehicleCategory, rfid, vehicleReg,
-    timeIn, timeOut, actualHours, billedHours,
-    trackCost, vehicleCost, totalCost, status] = row;
-  if (!id) return null;
-  const entryAt = parseSheetDateTime(date, timeIn);
-  const exitAt = timeOut ? parseSheetDateTime(date, timeOut) : null;
-  return {
-    id: String(id), sessionId: String(sessionId || ''),
-    engineerName: String(engineerName || ''), track: String(track || ''),
-    meta: {
-      trNumber: trNumber || '', project: project || '',
-      vehicleMake: vehicleMake || '', vehicleModel: vehicleModel || '',
-      vehicleClass: vehicleClass || '', vehicleCategory: vehicleCategory || '',
-      rfid: rfid || '', vehicleReg: vehicleReg || '',
-    },
-    entryAt: entryAt || Date.now(), exitAt: exitAt || null,
-    actualHours: Number(actualHours) || 0, billedHours: Number(billedHours) || 0,
-    trackCost: Number(trackCost) || 0, vehicleCost: Number(vehicleCost) || 0,
-    totalCost: Number(totalCost) || 0,
-    status: String(status || 'closed'), sync: 'synced',
-  };
-}
-
-async function pullLogsFromSheet() {
-  if (!state.gsUrl) return;
+async function seedFirestoreDefaults() {
+  const s = seedState();
   try {
-    const res = await fetch(`${state.gsUrl}?action=getLogs&sheetName=Logs`);
-    const data = await res.json();
-    if (!data || !data.ok || !Array.isArray(data.rows)) return;
-    const remoteLogs = data.rows.map(rowToLog).filter(Boolean);
-    // When duplicate IDs exist in the sheet, prefer the row with actual
-    // billing data (higher billedHours) over a zero/incomplete duplicate.
-    const remoteById = new Map();
-    remoteLogs.forEach(r => {
-      const existing = remoteById.get(r.id);
-      if (!existing || r.billedHours > existing.billedHours) remoteById.set(r.id, r);
+    await db.collection('config').doc('billing').set({
+      minHours: s.billing.minHours,
+      rates: s.billing.rates,
+      vehicleClassRates: s.vehicleClassRates,
+      updatedAt: Date.now(),
     });
-    const localById = new Map(state.logs.map(l => [l.id, l]));
-    // Sheet rows are the source of truth for anything already synced;
-    // keep local-only pending entries (not yet pushed) untouched.
-    remoteById.forEach((r, id) => localById.set(id, { ...localById.get(id), ...r }));
-    state.logs = Array.from(localById.values());
-    saveState();
-  } catch (e) { console.warn('Pull logs error', e); }
-}
-
-async function pullConfigFromSheet() {
-  if (!state.gsUrl) return;
-  // If a local config edit is still waiting to reach the sheet, do NOT
-  // pull — that would overwrite the newer local edit with the older
-  // remote copy, which is exactly what made admin changes look like
-  // they "reset to default". retryPendingConfigPush() (run earlier in
-  // the load sequence) is responsible for clearing this flag first.
-  if (state.pendingConfigPush) return;
-  try {
-    const res = await fetch(`${state.gsUrl}?action=getConfig`);
-    const data = await res.json();
-    if (!data || !data.ok || !data.config) return;
-    // Sheet is always the master source of truth for config.
-    // No timestamp guard — we never want a stale local copy to silently
-    // block an update that the admin saved from another device.
-    const cfg = data.config;
-    if (cfg.minHours) state.billing.minHours = cfg.minHours;
-    if (cfg.rates) state.billing.rates = cfg.rates;
-    if (cfg.vehicleClassRates) state.vehicleClassRates = cfg.vehicleClassRates;
-    if (cfg.users && Array.isArray(cfg.users) && cfg.users.length > 0) {
-      // Sheet is the master user list. Merge: sheet users win on conflict,
-      // but preserve any local-only users not yet pushed (e.g. just created
-      // before this pull resolved). Seed dummy IDs (u-eng1..3, u-mgr) are
-      // evicted once the sheet has a real user list.
-      const SEED_IDS = new Set(['u-eng1','u-eng2','u-eng3','u-mgr']);
-      const sheetById = new Map(cfg.users.map(u => [u.id, u]));
-      const localOnly = state.users.filter(u => !sheetById.has(u.id) && !SEED_IDS.has(u.id));
-      state.users = [...cfg.users, ...localOnly];
-    }
-    if (data.updatedAt) state.billing.configUpdatedAt = data.updatedAt;
-    saveState();
-  } catch (e) { console.warn('Pull config error', e); }
-}
-
-// Builds the config payload from current local state.
-function buildConfigPayload() {
-  return {
-    minHours: state.billing.minHours,
-    rates: state.billing.rates,
-    vehicleClassRates: state.vehicleClassRates,
-    users: state.users,
-  };
-}
-
-async function pushConfigToSheet() {
-  if (!state.gsUrl) return false;
-  const payload = buildConfigPayload();
-  try {
-    // text/plain avoids a CORS preflight that Apps Script web apps don't
-    // handle, so unlike no-cors we get a real, readable response back —
-    // letting us confirm the save actually landed before any pull runs.
-    const res = await fetch(state.gsUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'saveConfig', config: payload }),
-    });
-    const data = await res.json();
-    if (data && data.ok) {
-      state.billing.configUpdatedAt = data.updatedAt || Date.now();
-      // Success — clear any earlier failed-push marker so it's never
-      // resent (and never lets a stale pull look "reset to default").
-      state.pendingConfigPush = null;
-      saveState();
-      return true;
-    }
-    // Apps Script responded but reported failure (e.g. bad deployment,
-    // script error) — keep the change queued for retry.
-    state.pendingConfigPush = payload;
-    saveState();
-    return false;
-  } catch (e) {
-    console.warn('Push config error', e);
-    // Network/CORS/offline failure. Previously this change was simply
-    // lost: on the next load, pullConfigFromSheet() would overwrite
-    // local state with the OLD sheet data, which is exactly the
-    // "updates don't stick / reverts to default" bug. Now we remember
-    // the change and retry it before ever trusting a pull again.
-    state.pendingConfigPush = payload;
-    saveState();
-    return false;
-  }
-}
-
-// Retries a previously-failed config push. Called on every load, before
-// pulling from the sheet, so an admin's edit can never be silently wiped
-// out by a stale pull just because their last save failed to reach
-// Google (bad wifi, GAS cold start, temporary outage, etc).
-async function retryPendingConfigPush() {
-  if (!state.gsUrl || !state.pendingConfigPush) return true; // nothing to retry
-  try {
-    const res = await fetch(state.gsUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'saveConfig', config: state.pendingConfigPush }),
-    });
-    const data = await res.json();
-    if (data && data.ok) {
-      state.billing.configUpdatedAt = data.updatedAt || Date.now();
-      state.pendingConfigPush = null;
-      saveState();
-      return true;
-    }
-    return false;
-  } catch (e) {
-    console.warn('Retry pending config push failed', e);
-    return false;
-  }
-}
-
-async function syncFromSheetOnLoad() {
-  // Retry any config edit that failed to save last time BEFORE pulling —
-  // otherwise the pull below would silently overwrite it with the old
-  // sheet data on this "new session".
-  await retryPendingConfigPush();
-  await Promise.all([pullConfigFromSheet(), pullLogsFromSheet()]);
-  if (typeof currentPage !== 'undefined' && currentPage) {
-    renderPageContent(currentPage);
-  }
-  updateSyncBadge();
+  } catch (e) { console.warn('Seed billing config failed', e); }
 }
 
 // ──────────────────────────────────────────────────────
 // INIT
 // ──────────────────────────────────────────────────────
 loadState();
-syncFromSheetOnLoad();
-
-// Restore GS URL to modal if set
-document.getElementById('gs-url').value = state.gsUrl || '';
+initFirebase();
 
 // Show login
 showPage('login');
@@ -2126,50 +2259,88 @@ showPage('login');
 
 <!--
 ═══════════════════════════════════════════════════════
-GOOGLE APPS SCRIPT — paste this into your Sheet's
-Extensions → Apps Script editor, then deploy as
-Web App (Execute as: Me, Who has access: Anyone)
+FIREBASE SETUP
 ═══════════════════════════════════════════════════════
 
-NOTE: this file used to contain a SECOND, older copy of the Apps Script
-code right here. It was missing row-upsert (dedup by ID) and config
-updatedAt support, and had drifted out of sync with the real, correct
-copy earlier in this file (search for "Paste this into Apps Script").
-Two copies drifting apart is exactly how bugs like "sometimes the sheet
-has old logic" happen — so it has been deleted. There is now exactly
-ONE copy of the Apps Script code in this repo: see gappscript.gs
-(provided alongside this file) or the commented block above the
-"PULL FROM SHEET" section in the <script> tag. Always copy that one.
+1. CREATE A FIREBASE PROJECT
+   console.firebase.google.com → Add project (free "Spark" plan is fine
+   for this app's usage level).
+
+2. CREATE A FIRESTORE DATABASE
+   In the console: Build → Firestore Database → Create database.
+   Choose "Production mode" (rules below lock it down anyway) and any
+   region close to your users.
+
+3. ENABLE ANONYMOUS AUTHENTICATION
+   Build → Authentication → Sign-in method → Anonymous → Enable.
+   This is only used so the browser tab has *some* credential to satisfy
+   the security rules below — it is separate from the app's own
+   PIN/password login for engineers/managers/admins, which is unchanged
+   and still checked against the `users` collection in JS.
+
+4. REGISTER A WEB APP & COPY THE CONFIG
+   Project settings (gear icon) → General → Your apps → Add app → Web.
+   Copy the resulting config object into the `firebaseConfig` constant
+   near the top of the <script> tag in this file (search for
+   "FIREBASE CONFIG"). This config is not a secret — Firestore access is
+   controlled by the security rules below, not by hiding this object.
+
+5. SET FIRESTORE SECURITY RULES
+   Build → Firestore Database → Rules → paste:
+
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       // Anonymous sign-in is enough to prove "this is our app", not
+       // "this is an admin" — the app's own PIN/password check still
+       // gates which UI/actions a signed-in browser tab can reach.
+       // For stronger, server-enforced role checks you'd move user
+       // verification into Cloud Functions / custom auth claims instead
+       // of trusting the client — out of scope for this simple version.
+       match /{document=**} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+
+   (Also provided as a standalone firestore.rules file alongside this
+   index.html — paste its contents in instead of retyping.)
 
 ═══════════════════════════════════════════════════════
-SHEET SETUP — create a tab called "Logs" with these
-headers in row 1 (columns A through U):
+FIRESTORE DATA MODEL (created automatically on first run)
 ═══════════════════════════════════════════════════════
+users/{userId}          - one doc per engineer/manager/admin
+                           {id, name, role, pin|password, active, createdAt}
+logs/{logId}             - one doc per track session
+                           {id, sessionId, engineerId, engineerName, track,
+                            meta:{...}, entryAt, exitAt, status,
+                            actualHours, billedHours, trackCost,
+                            vehicleCost, totalCost}
+config/billing (doc)     - {minHours, rates, vehicleClassRates, updatedAt}
 
-ID | SessionID | Date | Engineer | Track | TR_No | Project |
-VehicleMake | VehicleModel | VehicleClass | TrackCategory | RFID | VehicleReg |
-TimeIn | TimeOut | ActualHrs | BilledHrs |
-TrackCost | VehicleCost | TotalCost | Status
-
-(No odometer columns — odometer tracking has been removed. If you're
-migrating an existing sheet that still has OdoStart/OdoEnd columns,
-delete those two columns entirely so TrackCost lines back up with the
-app's column order, rather than leaving them blank in place.)
-
-A second tab called "Config" is auto-created by the script the
-first time billing settings are saved — no manual setup needed.
+The first admin/engineer to load the app against a brand-new project
+seeds `users` and `config/billing` with the same defaults the old
+seedState() used — no manual data entry required to get started.
 
 ═══════════════════════════════════════════════════════
-HOSTING ON GITHUB PAGES
+HOSTING ON GITHUB PAGES (or Firebase Hosting)
 ═══════════════════════════════════════════════════════
 1. Create a GitHub repo (public or private with Pages enabled)
 2. Drop this HTML file into the repo root as index.html
 3. Go to Settings → Pages → Source: main branch / root
 4. Your app will be live at https://yourusername.github.io/repo-name/
 
-The Google Sheet is the shared source of truth across all devices:
-logs and billing config are pulled from it on every load, and the
-app falls back to localStorage only while offline.
+(Or, since you already have a Firebase project: `firebase init hosting`,
+point it at the folder containing this index.html, then `firebase
+deploy` — keeps app + database under one project.)
+
+Firestore is the shared source of truth across all devices: every
+change (log entry/exit, billing edits, user changes) is written
+straight to Firestore and pushed live to every other open tab via
+onSnapshot listeners — there is no periodic polling, no manual "Sync
+now", and no lost-update window while offline (Firestore's own local
+write queue holds changes and replays them once connectivity returns).
+localStorage is kept only as an instant-boot cache for this browser.
 -->
 </body>
 </html>
