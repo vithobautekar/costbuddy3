@@ -776,6 +776,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
 const TRACKS = Array.from({length:16},(_,i)=>`T${i+1}`);
 const DISABLED_TRACKS = new Set(['T10','T14','T15','T16']);
 const STORE_KEY = 'natrax-track-logger-v2';
+const LAST_USER_KEY = 'natrax-last-user-v1'; // separate from STORE_KEY on purpose — auto re-login
 
 // ──────────────────────────────────────────────────────
 // STATE
@@ -1164,22 +1165,35 @@ async function doLogin() {
   if (loginMode==='engineer') {
     const pin = document.getElementById('pin-input').value;
     const u = state.users.find(x=>x.role==='engineer'&&x.active&&x.pin===pin);
-    if (u) { state.auth.userId=u.id; saveState(); afterLogin(u); }
+    if (u) { state.auth.userId=u.id; saveState(); rememberLastUser(u.id); afterLogin(u); }
     else toast('Invalid PIN','error');
   } else {
     const pwd = document.getElementById('pwd-input').value;
     const u = state.users.find(x=>(x.role==='admin'||x.role==='manager')&&x.active&&x.password===pwd);
-    if (u) { state.auth.userId=u.id; saveState(); afterLogin(u); }
+    if (u) { state.auth.userId=u.id; saveState(); rememberLastUser(u.id); afterLogin(u); }
     else toast('Invalid password','error');
   }
+}
+
+function rememberLastUser(userId) {
+  try { localStorage.setItem(LAST_USER_KEY, userId); } catch(e) {}
+}
+function forgetLastUser() {
+  try { localStorage.removeItem(LAST_USER_KEY); } catch(e) {}
 }
 
 function afterLogin(user) {
   document.getElementById('pin-input').value='';
   document.getElementById('pwd-input').value='';
   if (user.role==='engineer') {
+    restoreSessionDraft(user); // pick up any in-progress session wiped by an iOS reload
     showPage('log');
     renderLogPage();
+    if (sessionStarted) {
+      document.getElementById('btn-start-session').classList.add('hidden');
+      document.getElementById('btn-end-session').classList.remove('hidden');
+      setFormDisabled(true);
+    }
   } else {
     showPage('dashboard');
     renderDashboard();
@@ -1188,6 +1202,9 @@ function afterLogin(user) {
 
 function doLogout() {
   state.auth.userId=null; saveState();
+  forgetLastUser();
+  clearSessionDraft();
+  sessionMeta=null; sessionStarted=false; sessionId=null;
   showPage('login');
 }
 
@@ -1196,8 +1213,12 @@ document.getElementById('pin-input').addEventListener('keydown',e=>{ if(e.key===
 document.getElementById('pwd-input').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
 
 // ──────────────────────────────────────────────────────
-// SESSION STATE (ephemeral, not persisted)
+// SESSION STATE (survives reload/relaunch via localStorage —
+// iOS can silently kill/reload a backgrounded tab or home-screen
+// web app at any time; there is no API to prevent that, so instead
+// we make sure the in-progress form survives it)
 // ──────────────────────────────────────────────────────
+const SESSION_DRAFT_KEY = 'natrax-session-draft-v1';
 let sessionMeta = null;
 let sessionStarted = false;
 let sessionId = null;
@@ -1211,10 +1232,39 @@ function emptyMeta(name) {
   };
 }
 
+// Saves the draft so a killed/reloaded page can pick up exactly where it left off.
+function persistSessionDraft() {
+  try {
+    const uid = currentUser()?.id;
+    if (!uid) return;
+    localStorage.setItem(SESSION_DRAFT_KEY, JSON.stringify({ userId: uid, sessionMeta, sessionStarted, sessionId }));
+  } catch (e) {}
+}
+
+// Restores the draft for this user only (never leaks one engineer's
+// in-progress TR/project/vehicle details to a different engineer who
+// logs in on the same device).
+function restoreSessionDraft(user) {
+  try {
+    const raw = localStorage.getItem(SESSION_DRAFT_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || saved.userId !== user.id) return;
+    sessionMeta = saved.sessionMeta || null;
+    sessionStarted = !!saved.sessionStarted;
+    sessionId = saved.sessionId || null;
+  } catch (e) {}
+}
+
+function clearSessionDraft() {
+  try { localStorage.removeItem(SESSION_DRAFT_KEY); } catch (e) {}
+}
+
 function updateMetaField(field, val) {
   if (!sessionMeta) sessionMeta = emptyMeta(currentUser()?.name||'');
   sessionMeta[field] = val;
   updateTrDisplay();
+  persistSessionDraft();
 }
 
 function updateTrDisplay() {
@@ -1357,6 +1407,7 @@ function startSession() {
   sessionMeta.trNumber = String(m.trNumber).padStart(2,'0');
   sessionStarted=true;
   sessionId=uid();
+  persistSessionDraft();
   document.getElementById('btn-start-session').classList.add('hidden');
   document.getElementById('btn-end-session').classList.remove('hidden');
   setFormDisabled(true);
@@ -1390,6 +1441,7 @@ function confirmEndSession() {
   closeModal('modal-end-session');
   toast('Session ended');
   sessionStarted=false; sessionId=null; sessionMeta=emptyMeta(currentUser()?.name||'');
+  clearSessionDraft();
   document.getElementById('btn-start-session').classList.remove('hidden');
   document.getElementById('btn-end-session').classList.add('hidden');
   setFormDisabled(false);
@@ -2253,8 +2305,25 @@ async function seedFirestoreDefaults() {
 loadState();
 initFirebase();
 
-// Show login
-showPage('login');
+// Auto re-login: if this device/browser has a remembered user (set on
+// last successful login, cleared on explicit logout) and that user is
+// still present and active in the cached user list, skip the login
+// screen entirely. This is what makes an iOS-forced reload transparent
+// to the engineer — no PIN re-entry, straight back into the log page
+// with their session draft restored (see restoreSessionDraft above).
+// Falls back to a normal login whenever anything doesn't check out.
+(function attemptAutoRelogin() {
+  try {
+    const lastUserId = localStorage.getItem(LAST_USER_KEY);
+    if (!lastUserId) { showPage('login'); return; }
+    const u = state.users.find(x => x.id === lastUserId && x.active);
+    if (!u) { forgetLastUser(); showPage('login'); return; }
+    state.auth.userId = u.id;
+    afterLogin(u);
+  } catch (e) {
+    showPage('login');
+  }
+})();
 </script>
 
 <!--
