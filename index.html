@@ -464,77 +464,97 @@ textarea { resize: vertical; min-height: 2.5rem; }
 <div id="page-log" class="page">
   <main class="max-w space-y" style="padding:1.5rem 1rem">
 
-    <!-- Session card -->
-    <section class="card card-p">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="font-semibold" style="font-size:1.1rem">Session details</h2>
-          <p class="text-xs text-muted">Fill required fields then start the session.</p>
+    <!-- SCREEN 1: Session metadata -->
+    <div id="screen-meta">
+      <section class="card card-p">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-semibold" style="font-size:1.1rem">Session details</h2>
+            <p class="text-xs text-muted">Fill required fields then start the session.</p>
+          </div>
+          <span class="mono text-xs text-muted" id="tr-display">—</span>
         </div>
-        <span class="mono text-xs text-muted" id="tr-display">—</span>
-      </div>
-      <div class="form-grid" id="session-form">
-        <div class="form-field"><label>TR Number <span class="text-primary">*</span></label><input type="text" id="s-tr" placeholder="01" oninput="updateMetaField('trNumber',this.value)"></div>
-        <div class="form-field"><label>Project <span class="text-primary">*</span></label><input type="text" id="s-project" placeholder="NVH-2025" oninput="updateMetaField('project',this.value)"></div>
-        <div class="form-field"><label>WBS</label><input type="text" id="s-wbs" placeholder="WBS-XXXXX" oninput="updateMetaField('wbs',this.value)"></div>
-        <div class="form-field"><label>Vehicle Make</label>
-<input type="text" id="s-make" placeholder="Tata" oninput="updateMetaField('vehicleMake',this.value)"></div>
-        <div class="form-field"><label>Vehicle Model</label><input type="text" id="s-model" placeholder="Nexon EV" oninput="updateMetaField('vehicleModel',this.value)"></div>
-        <div class="form-field"><label>Vehicle Class <span class="text-primary">*</span></label>
-          <select id="s-class" onchange="updateMetaField('vehicleClass',this.value)">
-            <option value="Hatchback Basic">Hatchback Basic</option>
-            <option value="Hatchback Premium">Hatchback Premium</option>
-            <option value="Compact SUV">Compact SUV</option>
-            <option value="Mid SUV / MUV">Mid SUV / MUV</option>
-            <option value="Large SUV">Large SUV</option>
-            <option value="EV">EV</option>
-            <option value="Utility / LCV">Utility / LCV</option>
-            <option value="Luxury">Luxury</option>
-          </select>
+        <div class="form-grid" id="session-form">
+          <div class="form-field"><label>TR Number <span class="text-primary">*</span></label><input type="text" id="s-tr" placeholder="01" oninput="updateMetaField('trNumber',this.value)"></div>
+          <div class="form-field"><label>Project <span class="text-primary">*</span></label><input type="text" id="s-project" placeholder="NVH-2025" oninput="updateMetaField('project',this.value)"></div>
+          <div class="form-field"><label>WBS</label><input type="text" id="s-wbs" placeholder="WBS-XXXXX" oninput="updateMetaField('wbs',this.value)"></div>
+          <div class="form-field"><label>Vehicle Make</label>
+  <input type="text" id="s-make" placeholder="Tata" oninput="updateMetaField('vehicleMake',this.value)"></div>
+          <div class="form-field"><label>Vehicle Model</label><input type="text" id="s-model" placeholder="Nexon EV" oninput="updateMetaField('vehicleModel',this.value)"></div>
+          <div class="form-field"><label>Vehicle Class <span class="text-primary">*</span></label>
+            <select id="s-class" onchange="updateMetaField('vehicleClass',this.value)">
+              <option value="Hatchback Basic">Hatchback Basic</option>
+              <option value="Hatchback Premium">Hatchback Premium</option>
+              <option value="Compact SUV">Compact SUV</option>
+              <option value="Mid SUV / MUV">Mid SUV / MUV</option>
+              <option value="Large SUV">Large SUV</option>
+              <option value="EV">EV</option>
+              <option value="Utility / LCV">Utility / LCV</option>
+              <option value="Luxury">Luxury</option>
+            </select>
+          </div>
+          <div class="form-field"><label>Track Category <span class="text-primary">*</span></label>
+            <select id="s-cat" onchange="updateMetaField('vehicleCategory',this.value)">
+              <option value="PCR">PCR (GVW &lt; 3.5T)</option>
+              <option value="2W">2W</option>
+              <option value="Commercial">Commercial (GVW ≥ 3.5T)</option>
+            </select>
+          </div>
+          <div class="form-field"><label>Vehicle Reg. No.</label><input type="text" id="s-reg" placeholder="MP09 XX 1234" oninput="updateMetaField('vehicleReg',this.value)"></div>
+          <div class="form-field"><label>RFID <span class="text-primary">*</span></label><input type="text" id="s-rfid" inputmode="numeric" placeholder="NATRAX tag" oninput="updateMetaField('rfid',this.value.replace(/\D/g,''))"></div>
+          <div class="form-field"><label>Test Date</label><input type="date" id="s-date" oninput="updateMetaField('testDate',this.value)"></div>
+          <div class="form-field"><label>Test Type</label><input type="text" id="s-type" placeholder="Durability / NVH" oninput="updateMetaField('testType',this.value)"></div>
+          <div class="form-field span2"><label>Remarks</label><textarea id="s-remarks" rows="1" placeholder="Optional notes" oninput="updateMetaField('remarks',this.value)"></textarea></div>
         </div>
-        <div class="form-field"><label>Track Category <span class="text-primary">*</span></label>
-          <select id="s-cat" onchange="updateMetaField('vehicleCategory',this.value)">
-            <option value="PCR">PCR (GVW &lt; 3.5T)</option>
-            <option value="2W">2W</option>
-            <option value="Commercial">Commercial (GVW ≥ 3.5T)</option>
-          </select>
-        </div>
-        <div class="form-field"><label>Vehicle Reg. No.</label><input type="text" id="s-reg" placeholder="MP09 XX 1234" oninput="updateMetaField('vehicleReg',this.value)"></div>
-        <div class="form-field"><label>RFID <span class="text-primary">*</span></label><input type="text" id="s-rfid" inputmode="numeric" placeholder="NATRAX tag" oninput="updateMetaField('rfid',this.value.replace(/\D/g,''))"></div>
-        <div class="form-field"><label>Test Date</label><input type="date" id="s-date" oninput="updateMetaField('testDate',this.value)"></div>
-        <div class="form-field"><label>Test Type</label><input type="text" id="s-type" placeholder="Durability / NVH" oninput="updateMetaField('testType',this.value)"></div>
-        <div class="form-field span2"><label>Remarks</label><textarea id="s-remarks" rows="1" placeholder="Optional notes" oninput="updateMetaField('remarks',this.value)"></textarea></div>
-      </div>
-      <hr class="divider">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="text-xs text-muted" id="session-status-msg">Fill required fields then start the session.</div>
-        <div class="flex gap-2">
+        <hr class="divider">
+        <div class="flex flex-wrap items-center justify-end gap-3">
           <button class="btn btn-primary" id="btn-start-session" onclick="startSession()">
             Start session
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
-          <button class="btn btn-destructive hidden" id="btn-end-session" onclick="openEndSession()">
+        </div>
+      </section>
+    </div>
+
+    <!-- SCREEN 2: Track grid (active session) -->
+    <div id="screen-track" class="hidden">
+      <section class="card card-p mb-4">
+        <div class="flex items-center justify-between">
+          <div class="flex flex-wrap gap-4">
+            <div>
+              <div class="text-xs text-muted">Project</div>
+              <div class="font-semibold" id="preview-project">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-muted">TR Number</div>
+              <div class="font-semibold" id="preview-tr">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-muted">RFID</div>
+              <div class="font-semibold" id="preview-rfid">—</div>
+            </div>
+          </div>
+          <button class="btn btn-destructive" id="btn-end-session" onclick="openEndSession()">
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></svg>
-            End session
+            Close session
           </button>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Track grid -->
-    <section class="card card-p">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="font-semibold" style="font-size:1.1rem">Track grid</h2>
-          <p class="text-xs text-muted">Tap to enter a track · Tap again to exit</p>
+      <section class="card card-p">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-semibold" style="font-size:1.1rem">Track grid</h2>
+            <p class="text-xs text-muted" id="session-status-msg">Tap to enter a track · Tap again to exit</p>
+          </div>
+          <div class="flex gap-3 text-xs text-muted">
+            <div class="flex items-center gap-1.5"><span style="width:10px;height:10px;background:var(--track-idle);border-radius:3px;display:inline-block"></span> Idle</div>
+            <div class="flex items-center gap-1.5"><span style="width:10px;height:10px;background:var(--primary);border-radius:3px;display:inline-block"></span> Active</div>
+          </div>
         </div>
-        <div class="flex gap-3 text-xs text-muted">
-          <div class="flex items-center gap-1.5"><span style="width:10px;height:10px;background:var(--track-idle);border-radius:3px;display:inline-block"></span> Idle</div>
-          <div class="flex items-center gap-1.5"><span style="width:10px;height:10px;background:var(--primary);border-radius:3px;display:inline-block"></span> Active</div>
-        </div>
-      </div>
-      <div class="track-grid" id="track-grid"></div>
-    </section>
+        <div class="track-grid" id="track-grid"></div>
+      </section>
+    </div>
 
     <!-- Today's logs -->
     <section class="card card-p">
@@ -1282,6 +1302,7 @@ function renderLogPage() {
   renderTrackGrid();
   renderTodayLogs();
   updateSessionStatus();
+  updateLogScreens();
   // Set date default
   if (!document.getElementById('s-date').value) document.getElementById('s-date').value = new Date().toISOString().slice(0,10);
   // Set form fields from meta
@@ -1296,6 +1317,20 @@ function renderLogPage() {
   document.getElementById('s-rfid').value = sessionMeta.rfid;
   document.getElementById('s-type').value = sessionMeta.testType;
   document.getElementById('s-remarks').value = sessionMeta.remarks;
+}
+
+// Toggles between the two log screens (session metadata vs. track grid)
+// and, when on the track screen, fills in the quick-reference preview
+// of Project / TR Number / RFID from the current session's metadata.
+function updateLogScreens() {
+  const active = !!sessionStarted;
+  document.getElementById('screen-meta').classList.toggle('hidden', active);
+  document.getElementById('screen-track').classList.toggle('hidden', !active);
+  if (active && sessionMeta) {
+    document.getElementById('preview-project').textContent = sessionMeta.project || '—';
+    document.getElementById('preview-tr').textContent = sessionMeta.trNumber || '—';
+    document.getElementById('preview-rfid').textContent = sessionMeta.rfid || '—';
+  }
 }
 
 // Disable/enable session form inputs
@@ -1425,6 +1460,7 @@ function startSession() {
   setFormDisabled(true);
   renderTrackGrid();
   updateSessionStatus();
+  updateLogScreens();
   toast('Session ready — tap tracks to log usage');
 }
 
@@ -1455,6 +1491,7 @@ function resumeOrphanSession(orphan) {
   document.getElementById('btn-start-session').classList.add('hidden');
   document.getElementById('btn-end-session').classList.remove('hidden');
   setFormDisabled(true);
+  updateLogScreens();
   toast(`Resumed — tap ${orphan.track} again to exit`);
 }
 
