@@ -1400,6 +1400,18 @@ function closeLog(logId) {
 function startSession() {
   const user = currentUser();
   if(!user) return;
+  // Guard: if this engineer already has ANY open (unclosed) log — most
+  // likely left dangling by an abandoned/killed earlier session — don't
+  // let a new session start over it. Left unchecked, tapping the same
+  // track number later would silently close that OLD log instead of
+  // starting a new one (since the open-track check used to match by
+  // engineer only, not by session), producing a split/duplicate entry
+  // like the T2 case. Force it to be resolved first.
+  const orphan = state.logs.find(l=>l.engineerId===user.id&&l.status==='open');
+  if (orphan) {
+    openResumeOrphanModal(orphan);
+    return;
+  }
   const m = sessionMeta;
   if(!m.trNumber||!m.project||!m.vehicleClass||!m.rfid) {
     toast('Complete all required fields','error'); return;
@@ -1414,6 +1426,36 @@ function startSession() {
   renderTrackGrid();
   updateSessionStatus();
   toast('Session ready — tap tracks to log usage');
+}
+
+// Surfaces a dangling open track (from an abandoned/killed session) and
+// lets the engineer either resume it properly (so its real exit time
+// gets captured on the SAME log) or, if it truly is done, jump straight
+// to editing its exit time — instead of it getting silently swallowed
+// by a new session later.
+function openResumeOrphanModal(orphan) {
+  const mins = Math.round((Date.now()-orphan.entryAt)/60000);
+  const msg = `Track ${orphan.track} is still open from an earlier session `+
+              `(started ${fmtTime(orphan.entryAt)}, ${mins} min ago). `+
+              `Resume it and tap ${orphan.track} again to exit properly, `+
+              `or edit its exit time directly if the track has already finished.`;
+  if (confirm(msg + '\n\nOK = Resume this session   Cancel = Edit exit time now')) {
+    resumeOrphanSession(orphan);
+  } else {
+    showPage('logs'); renderLogs(); openEditLog(orphan.id);
+  }
+}
+
+function resumeOrphanSession(orphan) {
+  sessionId = orphan.sessionId;
+  sessionStarted = true;
+  sessionMeta = { ...orphan.meta };
+  persistSessionDraft();
+  renderLogPage();
+  document.getElementById('btn-start-session').classList.add('hidden');
+  document.getElementById('btn-end-session').classList.remove('hidden');
+  setFormDisabled(true);
+  toast(`Resumed — tap ${orphan.track} again to exit`);
 }
 
 function updateSessionStatus() {
@@ -1432,6 +1474,11 @@ function updateSessionStatus() {
 function openEndSession() {
   const sLogs=sessionId?state.logs.filter(l=>l.sessionId===sessionId):[];
   if(sLogs.length===0){toast('Log at least one track first','error');return;}
+  const stillOpen = sLogs.find(l=>l.status==='open');
+  if (stillOpen) {
+    toast(`Exit ${stillOpen.track} first — ending the session now would record its exit time as right now, not when the track actually finished`,'error');
+    return;
+  }
   document.getElementById('end-session-desc').textContent=`Finalise this session (${sLogs.length} track${sLogs.length===1?'':'s'}).`;
   openModal('modal-end-session');
 }
