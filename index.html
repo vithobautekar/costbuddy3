@@ -172,6 +172,14 @@ textarea { resize: vertical; min-height: 2.5rem; }
 .kpi-trend-up { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
 .kpi-trend-down { background: color-mix(in srgb, var(--destructive) 15%, transparent); color: var(--destructive); }
 .kpi-trend-flat { background: var(--muted); color: var(--muted-foreground); }
+.kpi-body { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.kpi-body-left { min-width: 0; }
+.kpi-value-short { font-size: 0.7rem; color: var(--muted-foreground); margin-top: 0.15rem; }
+.kpi-ring { position: relative; width: 3.4rem; height: 3.4rem; flex-shrink: 0; }
+.kpi-ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.kpi-ring-bg { fill: none; stroke: var(--muted); stroke-width: 6; }
+.kpi-ring-fg { fill: none; stroke-width: 6; stroke-linecap: round; stroke: var(--kpi-accent, var(--primary)); transition: stroke-dashoffset 0.7s ease; }
+.kpi-ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 
 /* ── Quick stat chips ── */
 .chip-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
@@ -478,6 +486,13 @@ textarea { resize: vertical; min-height: 2.5rem; }
           <div class="form-field"><label>TR Number <span class="text-primary">*</span></label><input type="text" id="s-tr" placeholder="01" oninput="updateMetaField('trNumber',this.value)"></div>
           <div class="form-field"><label>Project <span class="text-primary">*</span></label><input type="text" id="s-project" placeholder="NVH-2025" oninput="updateMetaField('project',this.value)"></div>
           <div class="form-field"><label>WBS</label><input type="text" id="s-wbs" placeholder="WBS-XXXXX" oninput="updateMetaField('wbs',this.value)"></div>
+          <div class="form-field"><label>Track Category <span class="text-primary">*</span></label>
+            <select id="s-cat" onchange="updateMetaField('vehicleCategory',this.value); handleCategoryChange(this.value)">
+              <option value="PCR">PCR (GVW &lt; 3.5T)</option>
+              <option value="2W">2W</option>
+              <option value="Commercial">Commercial (GVW ≥ 3.5T)</option>
+            </select>
+          </div>
           <div class="form-field"><label>Vehicle Make</label>
   <input type="text" id="s-make" placeholder="Tata" oninput="updateMetaField('vehicleMake',this.value)"></div>
           <div class="form-field"><label>Vehicle Model</label><input type="text" id="s-model" placeholder="Nexon EV" oninput="updateMetaField('vehicleModel',this.value)"></div>
@@ -492,13 +507,7 @@ textarea { resize: vertical; min-height: 2.5rem; }
               <option value="Utility / LCV">Utility / LCV</option>
               <option value="Luxury">Luxury</option>
             </select>
-          </div>
-          <div class="form-field"><label>Track Category <span class="text-primary">*</span></label>
-            <select id="s-cat" onchange="updateMetaField('vehicleCategory',this.value)">
-              <option value="PCR">PCR (GVW &lt; 3.5T)</option>
-              <option value="2W">2W</option>
-              <option value="Commercial">Commercial (GVW ≥ 3.5T)</option>
-            </select>
+            <span class="text-xs text-muted" id="s-class-note" style="display:none">In-house asset — no rental cost for Commercial category.</span>
           </div>
           <div class="form-field"><label>Vehicle Reg. No.</label><input type="text" id="s-reg" placeholder="MP09 XX 1234" oninput="updateMetaField('vehicleReg',this.value)"></div>
           <div class="form-field"><label>RFID <span class="text-primary">*</span></label><input type="text" id="s-rfid" inputmode="numeric" placeholder="NATRAX tag" oninput="updateMetaField('rfid',this.value.replace(/\D/g,''))"></div>
@@ -573,21 +582,22 @@ textarea { resize: vertical; min-height: 2.5rem; }
      PAGE: ADMIN DASHBOARD
 ══════════════════════════════════════════════════════ -->
 <div id="page-dashboard" class="page">
-  <main class="max-w space-y" style="padding:1.5rem 1rem">
-    <div class="flex flex-wrap items-end justify-between gap-3">
+  <main class="max-w space-y" style="padding:1.5rem 1rem;position:relative">
+    <div style="position:absolute;top:-3rem;right:-4rem;width:20rem;height:20rem;background:radial-gradient(circle,var(--chart4) 0%,var(--chart3) 45%,transparent 72%);opacity:0.09;border-radius:50%;filter:blur(70px);pointer-events:none;z-index:0;margin-top:0"></div>
+    <div class="flex flex-wrap items-end justify-between gap-3" style="position:relative;z-index:1;margin-top:0">
       <div>
         <h1 class="text-2xl">Operations dashboard</h1>
         <p class="text-sm text-muted">Cross-track cost, vehicle hiring, utilisation.</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <select id="dash-project" onchange="renderDashboard()" style="width:12rem">
-          <option value="all">All projects</option>
-        </select>
-        <select id="dash-tr" onchange="renderDashboard()" style="width:10rem">
-          <option value="all">All TR numbers</option>
-        </select>
-        <select id="dash-wbs" onchange="renderDashboard()" style="width:10rem">
-          <option value="all">All WBS</option>
+        <input type="text" id="dash-project" list="dash-project-list" placeholder="All projects" oninput="renderDashboard()" style="width:11rem">
+        <datalist id="dash-project-list"></datalist>
+        <input type="text" id="dash-tr" list="dash-tr-list" placeholder="All TR numbers" oninput="renderDashboard()" style="width:10rem">
+        <datalist id="dash-tr-list"></datalist>
+        <input type="text" id="dash-wbs" list="dash-wbs-list" placeholder="All WBS" oninput="renderDashboard()" style="width:9rem">
+        <datalist id="dash-wbs-list"></datalist>
+        <select id="dash-year" onchange="renderDashboard()" style="width:8rem">
+          <option value="all">All years</option>
         </select>
         <select id="dash-month" onchange="renderDashboard()" style="width:11rem">
           <option value="all">All months</option>
@@ -841,6 +851,12 @@ function seedState() {
       'EV': 29000,
       'Utility / LCV': 37000,
       'Luxury': 85000,
+      'Economy 2W (≤125cc)': 4100,
+      'Mainstream 2W (126-250cc)': 6800,
+      'Premium 2W (251-500cc)': 10500,
+      'Large Capacity 2W (501-800cc)': 18000,
+      'Superbikes (>800cc)': 35000,
+      'Electric 2W': 6600,
     },
     billing: {
       minHours: defaultMinHours(),
@@ -897,6 +913,19 @@ const uid = () => Math.random().toString(36).slice(2,10);
 function fmtINR(n) {
   return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n||0);
 }
+// Compact Indian-style currency (K/L/Cr) — used only inside chart labels/
+// legends/center-text where space is tight. Full precision (fmtINR) is
+// still used everywhere else: tables, PDF export, KPI totals.
+function fmtINRShort(n) {
+  n = n||0;
+  const abs = Math.abs(n);
+  const sign = n<0?'-':'';
+  const short = (v,d) => parseFloat(v.toFixed(d)).toString();
+  if (abs>=1e7) return `${sign}₹${short(abs/1e7, abs/1e7<10?2:1)}Cr`;
+  if (abs>=1e5) return `${sign}₹${short(abs/1e5, abs/1e5<10?2:1)}L`;
+  if (abs>=1e3) return `${sign}₹${short(abs/1e3, abs/1e3<10?1:0)}K`;
+  return `${sign}₹${Math.round(abs)}`;
+}
 function fmtDuration(ms) {
   const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
@@ -930,8 +959,133 @@ function computeBilling(log) {
   const rateSet=state.billing.rates[log.track]||(Object.values(state.billing.rates)[0]||{pcr:1500,commercial:2500});
   const hourly=cat==='Commercial'?rateSet.commercial:rateSet.pcr;
   const trackCost=billedHours*hourly;
-  const vehicleCost=state.vehicleClassRates[log.meta.vehicleClass]||0;
+  // Commercial (>=3.5T) vehicles are an in-house asset — no rental cost,
+  // regardless of whatever Vehicle Class value is stored on the log.
+  const vehicleCost = cat==='Commercial' ? 0 : (state.vehicleClassRates[log.meta.vehicleClass]||0);
   return {actualHours,billedHours,trackCost,vehicleCost,totalCost:trackCost+vehicleCost};
+}
+
+// ──────────────────────────────────────────────────────
+// VEHICLE RENTAL — billed once per vehicle per calendar day
+// ──────────────────────────────────────────────────────
+// The vehicle itself (identified by RFID, or registration number as a
+// fallback) is what's hired for the day — not per session, not per
+// track. So only the chronologically-first billable log for a given
+// vehicle+day combination should carry the vehicle cost; every other
+// log for that same vehicle that same day gets vehicleCost=0 (track
+// cost is unaffected either way).
+function vehicleDayKey(log) {
+  const vehicleId=(log.meta?.rfid||log.meta?.vehicleReg||'').trim().toLowerCase();
+  if (!vehicleId) return null; // no reliable identifier — can't dedup, so don't (fail safe: charge it)
+  const day=new Date(log.entryAt).toISOString().slice(0,10);
+  return `${vehicleId}__${day}`;
+}
+
+// Given a batch of logs being finalized right now (already run through
+// computeBilling) and every OTHER already-final log in the system,
+// returns a copy of the batch with vehicleCost/totalCost corrected so
+// only the earliest use of each vehicle that day keeps the charge.
+// Works for single-log batches too (autoClose, saveEditLog).
+function applyVehicleDayDedup(batch, otherFinalLogs) {
+  const alreadyBilledKeys=new Set(
+    otherFinalLogs.filter(o=>(o.vehicleCost||0)>0).map(vehicleDayKey).filter(Boolean)
+  );
+  const claimed=new Set();
+  const decidedCost={};
+  [...batch].sort((a,b)=>a.entryAt-b.entryAt).forEach(l=>{
+    const key=vehicleDayKey(l);
+    if (!key) { decidedCost[l.id]=l.vehicleCost; return; }
+    if (alreadyBilledKeys.has(key)||claimed.has(key)) {
+      decidedCost[l.id]=0;
+    } else {
+      decidedCost[l.id]=l.vehicleCost;
+      if (l.vehicleCost>0) claimed.add(key);
+    }
+  });
+  return batch.map(l=>{
+    const vehicleCost=decidedCost[l.id];
+    if (vehicleCost===l.vehicleCost) return l;
+    return {...l, vehicleCost, totalCost:l.trackCost+vehicleCost};
+  });
+}
+
+// ──────────────────────────────────────────────────────
+// TRACK COST — cumulative per RFID + Track + calendar day
+// ──────────────────────────────────────────────────────
+// The same vehicle can visit the same track multiple times a day across
+// separate sessions. The minimum billing hours should apply to the
+// CUMULATIVE actual duration for that RFID+Track+day combination, not
+// separately to each individual visit. Once the cumulative duration
+// exceeds the minimum, the excess is rounded UP to the next full hour.
+// The resulting total is assigned to the chronologically-first visit in
+// the group; every later visit's own track cost is zero (same pattern
+// as vehicle-cost dedup).
+function trackDayKey(log) {
+  const vehicleId=(log.meta?.rfid||log.meta?.vehicleReg||'').trim().toLowerCase();
+  if (!vehicleId) return null; // no reliable identifier — can't group, so don't (fail safe: bill it individually)
+  const day=new Date(log.entryAt).toISOString().slice(0,10);
+  return `${vehicleId}__${log.track}__${day}`;
+}
+
+// Single entry point used by every place that finalizes billing
+// (endSession, autoClose, checkAutoClose, saveEditLog, deleteLog).
+// Handles vehicle-per-day dedup AND track-cost-cumulative-per-day
+// together, so totalCost is always trackCost+vehicleCost consistently.
+//
+// IMPORTANT: because an earlier visit may need its track cost bumped up
+// once a later visit in the same RFID+Track+day group pushes the
+// cumulative total past the minimum, this can return updates for logs
+// OUTSIDE the input batch too (via retroLogs) — e.g. a log from an
+// already-closed earlier session today. The caller MUST persist and
+// re-push every log in retroLogs, not just finalBatch.
+function recomputeCumulativeBilling(freshBatch) {
+  const batchIds=new Set(freshBatch.map(l=>l.id));
+  const otherFinal=state.logs.filter(l=>!batchIds.has(l.id)&&l.status!=='open');
+
+  // Vehicle cost: once per RFID per day
+  const vehicleBilled=applyVehicleDayDedup(freshBatch, otherFinal);
+  const vehicleCostById=Object.fromEntries(vehicleBilled.map(l=>[l.id,l.vehicleCost]));
+
+  // Track cost: cumulative actual duration per RFID+Track+day
+  const touchedKeys=new Set(freshBatch.map(trackDayKey).filter(Boolean));
+  const trackCostById={};
+  const retroLogs=[];
+
+  touchedKeys.forEach(key=>{
+    const groupMates=[...otherFinal,...freshBatch].filter(l=>trackDayKey(l)===key);
+    groupMates.sort((a,b)=>a.entryAt-b.entryAt);
+    const first=groupMates[0];
+    const cumulativeActual=groupMates.reduce((s,l)=>s+((l.exitAt-l.entryAt)/3_600_000),0);
+    const cat=first.meta.vehicleCategory||'PCR';
+    const trackRates=state.billing.minHours[first.track];
+    const min=(trackRates&&trackRates[cat])||1;
+    const rateSet=state.billing.rates[first.track]||(Object.values(state.billing.rates)[0]||{pcr:1500,commercial:2500});
+    const hourly=cat==='Commercial'?rateSet.commercial:rateSet.pcr;
+    const billedHours = cumulativeActual<=min ? min : min+Math.ceil(cumulativeActual-min);
+    const trackCost=billedHours*hourly;
+    groupMates.forEach(l=>{
+      trackCostById[l.id]=(l.id===first.id)?{billedHours,trackCost}:{billedHours:0,trackCost:0};
+    });
+    // First log of the group isn't in this batch (an earlier, already-
+    // closed visit) and its total actually changed — retroactively update it.
+    if (!batchIds.has(first.id) && (first.trackCost!==trackCost||first.billedHours!==billedHours)) {
+      retroLogs.push({...first,billedHours,trackCost,totalCost:trackCost+(vehicleCostById[first.id]??first.vehicleCost),sync:'pending'});
+    }
+    // Any other older, non-first group-mate still carrying a stale non-zero
+    // track cost from before this fix — zero it out for consistency.
+    groupMates.forEach(l=>{
+      if (l.id!==first.id && !batchIds.has(l.id) && (l.trackCost||0)>0) {
+        retroLogs.push({...l,billedHours:0,trackCost:0,totalCost:0+(vehicleCostById[l.id]??l.vehicleCost),sync:'pending'});
+      }
+    });
+  });
+
+  const finalBatch=freshBatch.map(l=>{
+    const tc=trackCostById[l.id]||{billedHours:l.billedHours,trackCost:l.trackCost};
+    const vc=vehicleCostById[l.id]??l.vehicleCost;
+    return {...l,billedHours:tc.billedHours,trackCost:tc.trackCost,vehicleCost:vc,totalCost:tc.trackCost+vc};
+  });
+  return {finalBatch, retroLogs};
 }
 
 // ──────────────────────────────────────────────────────
@@ -971,10 +1125,23 @@ function resolvePeriodRange(period) {
   }
 }
 
-// Returns a fully enriched copy of a log — original fields + fresh computed fields.
+// Returns a fully enriched copy of a log for reporting/export. Uses the
+// PERSISTED billing fields (trackCost/vehicleCost/totalCost/billedHours)
+// rather than recomputing them fresh from this log alone — track cost is
+// billed cumulatively per RFID+Track+day and vehicle cost once per
+// RFID+day (see recomputeCumulativeBilling), both of which need sibling
+// logs to determine correctly. The persisted values are exactly what was
+// actually billed and synced when the log was finalized.
 function enrichLog(l) {
-  const computed = computeBilling(l);
-  return { ...l, ...computed };
+  if (!l.exitAt) return { ...l, actualHours:0, billedHours:0, trackCost:0, vehicleCost:0, totalCost:0 };
+  return {
+    ...l,
+    actualHours: l.actualHours ?? (l.exitAt-l.entryAt)/3_600_000,
+    billedHours: l.billedHours||0,
+    trackCost: l.trackCost||0,
+    vehicleCost: l.vehicleCost||0,
+    totalCost: l.totalCost||0,
+  };
 }
 
 // Core extractor: returns { logs, summary } for the given period.
@@ -1287,6 +1454,31 @@ function updateMetaField(field, val) {
   persistSessionDraft();
 }
 
+const CAR_CLASSES = ['Hatchback Basic','Hatchback Premium','Compact SUV','Mid SUV / MUV','Large SUV','EV','Utility / LCV','Luxury'];
+const TWO_W_CLASSES = ['Economy 2W (≤125cc)','Mainstream 2W (126-250cc)','Premium 2W (251-500cc)','Large Capacity 2W (501-800cc)','Superbikes (>800cc)','Electric 2W'];
+
+// Commercial-category vehicles are an in-house asset (no rental cost),
+// so Vehicle Class is irrelevant and locked for that category — this
+// also mirrors the vehicleCost=0 enforcement in computeBilling().
+// For 2W, the Vehicle Class list switches to the 2W rate categories
+// instead of the car classes.
+function handleCategoryChange(cat) {
+  const classSelect = document.getElementById('s-class');
+  const note = document.getElementById('s-class-note');
+  const isCommercial = cat === 'Commercial';
+  const list = cat === '2W' ? TWO_W_CLASSES : CAR_CLASSES;
+  if (classSelect.dataset.list !== cat) {
+    classSelect.innerHTML = list.map(c=>`<option value="${c}">${c}</option>`).join('');
+    classSelect.dataset.list = cat;
+  }
+  const current = sessionMeta && sessionMeta.vehicleClass;
+  const value = list.includes(current) ? current : list[0];
+  classSelect.value = value;
+  if (sessionMeta && sessionMeta.vehicleClass !== value) { sessionMeta.vehicleClass = value; persistSessionDraft(); }
+  classSelect.disabled = isCommercial;
+  note.style.display = isCommercial ? 'inline' : 'none';
+}
+
 function updateTrDisplay() {
   const tr = sessionMeta?.trNumber;
   document.getElementById('tr-display').textContent = tr ? `TR-${new Date().getFullYear()}-${String(tr).padStart(2,'0')}` : '—';
@@ -1311,8 +1503,8 @@ function renderLogPage() {
   document.getElementById('s-wbs').value = sessionMeta.wbs;
   document.getElementById('s-make').value = sessionMeta.vehicleMake;
   document.getElementById('s-model').value = sessionMeta.vehicleModel;
-  document.getElementById('s-class').value = sessionMeta.vehicleClass||'Hatchback Basic';
   document.getElementById('s-cat').value = sessionMeta.vehicleCategory;
+  handleCategoryChange(sessionMeta.vehicleCategory);
   document.getElementById('s-reg').value = sessionMeta.vehicleReg;
   document.getElementById('s-rfid').value = sessionMeta.rfid;
   document.getElementById('s-type').value = sessionMeta.testType;
@@ -1538,20 +1730,20 @@ function confirmEndSession() {
 
 function endSession(sid) {
   const sLogs=state.logs.filter(l=>l.sessionId===sid).sort((a,b)=>a.entryAt-b.entryAt);
-  const firstId=sLogs[0]?.id;
-  const updated=[];
-  state.logs=state.logs.map(l=>{
-    if(l.sessionId!==sid)return l;
+  const freshBatch=sLogs.map(l=>{
     const closed={...l,exitAt:l.exitAt||Date.now(),status:l.status==='open'?'complete':l.status,sync:'pending'};
-    const b=computeBilling(closed);
-    if(l.id!==firstId){b.vehicleCost=0;b.totalCost=b.trackCost;}
-    const merged={...closed,...b};
-    updated.push(merged);
-    return merged;
+    return {...closed,...computeBilling(closed)};
   });
+  const {finalBatch,retroLogs}=recomputeCumulativeBilling(freshBatch);
+  const finalById=Object.fromEntries(finalBatch.map(l=>[l.id,l]));
+  const retroById=Object.fromEntries(retroLogs.map(l=>[l.id,l]));
+  state.logs=state.logs.map(l=>finalById[l.id]||retroById[l.id]||l);
   saveState(); updateSyncBadge();
-  // Push every affected log to Firestore — instant, regardless of status
-  updated.forEach(pushLog);
+  // Push every affected log to Firestore — instant, regardless of status.
+  // Includes retroLogs: an earlier same-day visit whose cumulative
+  // RFID+Track cost just changed because of this session closing.
+  finalBatch.forEach(pushLog);
+  retroLogs.forEach(pushLog);
 }
 
 let todayLogIntervals=[];
@@ -1618,13 +1810,19 @@ async function pushLog(log) {
   // Re-compute billing for any log that has an exitAt but zero billedHours —
   // this happens when iOS kills the app mid-session so endSession() never ran,
   // but exitAt was recovered on next open (e.g. via auto-close or manual edit).
+  // Routed through recomputeCumulativeBilling (not a raw computeBilling call)
+  // so this recovery path can't bypass the per-RFID+Track+day cumulative
+  // billing rule and re-introduce the per-visit overcharge it exists to catch.
   let l = log;
   if (l.exitAt && (!l.billedHours || l.billedHours === 0)) {
-    const b = computeBilling(l);
-    if (b.billedHours > 0) {
-      l = { ...l, ...b };
-      state.logs = state.logs.map(x => x.id === l.id ? l : x);
+    const closed = { ...l, ...computeBilling(l) };
+    if (closed.billedHours > 0) {
+      const { finalBatch, retroLogs } = recomputeCumulativeBilling([closed]);
+      l = finalBatch[0];
+      const retroById = Object.fromEntries(retroLogs.map(r => [r.id, r]));
+      state.logs = state.logs.map(x => x.id === l.id ? l : (retroById[x.id] || x));
       saveState();
+      retroLogs.forEach(r => pushLog(r)); // safe: these already have billedHours set, won't re-enter this branch
     }
   }
   try {
@@ -1640,6 +1838,49 @@ async function pushLog(log) {
 // DASHBOARD
 // ──────────────────────────────────────────────────────
 let chartTrack=null, chartProject=null, chartCategory=null;
+
+// Draws a shortened value in the center of a doughnut chart. Opt-in per
+// chart via options.plugins.centerText = {title, value}. Uses only the
+// Chart.js instance already loaded — no extra library.
+const centerTextPlugin = {
+  id: 'centerText',
+  afterDraw(chart) {
+    const cfg = chart.options.plugins && chart.options.plugins.centerText;
+    if (!cfg || !cfg.value) return;
+    const {ctx, chartArea:{left,right,top,bottom}} = chart;
+    const cx=(left+right)/2, cy=(top+bottom)/2;
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#f0f2f7';
+    ctx.font='700 15px JetBrains Mono, monospace';
+    ctx.fillText(cfg.value, cx, cfg.title? cy-7 : cy);
+    if (cfg.title) {
+      ctx.fillStyle='#8892a4';
+      ctx.font='600 9px Inter, sans-serif';
+      ctx.fillText(cfg.title, cx, cy+10);
+    }
+    ctx.restore();
+  }
+};
+// Draws a shortened cost label above each non-empty bar. Opt-in via
+// options.plugins.barValueLabels = {values:[...]} (same order as data).
+const barValueLabelsPlugin = {
+  id: 'barValueLabels',
+  afterDatasetsDraw(chart) {
+    const cfg = chart.options.plugins && chart.options.plugins.barValueLabels;
+    if (!cfg || !cfg.values) return;
+    const {ctx} = chart;
+    const meta = chart.getDatasetMeta(0);
+    ctx.save();
+    ctx.textAlign='center'; ctx.font='700 10px JetBrains Mono, monospace'; ctx.fillStyle='#c5cbd8';
+    meta.data.forEach((bar,i)=>{
+      const v = cfg.values[i];
+      if (!v) return;
+      ctx.fillText(v, bar.x, bar.y-6);
+    });
+    ctx.restore();
+  }
+};
 let lastDashboardSnapshot=null;
 function inQuarter(d,q) {
   if(q==='all')return true;
@@ -1652,32 +1893,31 @@ function inQuarter(d,q) {
 function renderDashboard() {
   const quarter=document.getElementById('dash-quarter')?.value||'all';
   const monthFilter=document.getElementById('dash-month')?.value||'all';
-  const projectFilter=document.getElementById('dash-project')?.value||'all';
-  const trFilter=document.getElementById('dash-tr')?.value||'all';
-  const wbsFilter=document.getElementById('dash-wbs')?.value||'all';
+  const yearFilter=document.getElementById('dash-year')?.value||'all';
+  const projectFilter=document.getElementById('dash-project')?.value?.trim()||'all';
+  const trFilter=document.getElementById('dash-tr')?.value?.trim()||'all';
+  const wbsFilter=document.getElementById('dash-wbs')?.value?.trim()||'all';
   const projects=[...new Set(state.logs.map(l=>l.meta.project).filter(Boolean))];
-  const dashProject=document.getElementById('dash-project');
-  if(dashProject) {
-    const prev=dashProject.value;
-    dashProject.innerHTML='<option value="all">All projects</option>'+projects.map(p=>`<option value="${p}"${prev===p?' selected':''}>${p}</option>`).join('');
-  }
+  const projectList=document.getElementById('dash-project-list');
+  if(projectList) projectList.innerHTML=projects.map(p=>`<option value="${p}">`).join('');
   const dashTrNumbers=[...new Set(state.logs.map(l=>l.meta.trNumber).filter(Boolean))].sort();
-  const dashTr=document.getElementById('dash-tr');
-  if(dashTr) {
-    const prev=dashTr.value;
-    dashTr.innerHTML='<option value="all">All TR numbers</option>'+dashTrNumbers.map(t=>`<option value="${t}"${prev===t?' selected':''}>TR-${t}</option>`).join('');
-  }
+  const trList=document.getElementById('dash-tr-list');
+  if(trList) trList.innerHTML=dashTrNumbers.map(t=>`<option value="${t}">TR-${t}</option>`).join('');
   const dashWbsList=[...new Set(state.logs.map(l=>l.meta.wbs).filter(Boolean))].sort();
-  const dashWbs=document.getElementById('dash-wbs');
-  if(dashWbs) {
-    const prev=dashWbs.value;
-    dashWbs.innerHTML='<option value="all">All WBS</option>'+dashWbsList.map(w=>`<option value="${w}"${prev===w?' selected':''}>${w}</option>`).join('');
+  const wbsList=document.getElementById('dash-wbs-list');
+  if(wbsList) wbsList.innerHTML=dashWbsList.map(w=>`<option value="${w}">`).join('');
+  const dashYears=[...new Set(state.logs.map(l=>new Date(l.entryAt).getFullYear()))].sort((a,b)=>b-a);
+  const dashYear=document.getElementById('dash-year');
+  if(dashYear) {
+    const prev=dashYear.value;
+    dashYear.innerHTML='<option value="all">All years</option>'+dashYears.map(y=>`<option value="${y}"${prev===String(y)?' selected':''}>${y}</option>`).join('');
   }
   const filtered=state.logs.filter(l=>{
     if(l.status==='open')return false;
     const d=new Date(l.entryAt);
     if(!inQuarter(d,quarter))return false;
     if(monthFilter!=='all'&&d.getMonth()!==Number(monthFilter))return false;
+    if(yearFilter!=='all'&&d.getFullYear()!==Number(yearFilter))return false;
     if(projectFilter!=='all'&&l.meta.project!==projectFilter)return false;
     if(trFilter!=='all'&&l.meta.trNumber!==trFilter)return false;
     if(wbsFilter!=='all'&&l.meta.wbs!==wbsFilter)return false;
@@ -1685,7 +1925,7 @@ function renderDashboard() {
   });
   const totals=filtered.reduce((a,l)=>({track:a.track+(l.trackCost||0),vehicle:a.vehicle+(l.vehicleCost||0),hours:a.hours+(l.billedHours||0)}),{track:0,vehicle:0,hours:0});
   const engCount=state.users.filter(u=>u.role==='engineer'&&u.active).length;
-  // Trailing 30d vs prior 30d trend (independent of month/quarter picker, respects project/TR/WBS filters)
+  // Trailing 30d vs prior 30d trend (independent of year/month/quarter picker, respects project/TR/WBS filters)
   const DAY=86400000, now=Date.now();
   const trendBase=state.logs.filter(l=>{
     if(l.status==='open')return false;
@@ -1709,13 +1949,52 @@ function renderDashboard() {
     const up=rounded>0;
     return `<span class="kpi-trend ${up?'kpi-trend-up':'kpi-trend-down'}">${up?'↑':'↓'} ${Math.abs(rounded)}% vs prior 30d</span>`;
   };
-  // KPIs — color-coded, with animated values and 30-day trend chips
+  // Small circular progress ring (SVG) shown on each KPI card — purely a
+  // visual complement to the existing trend chip, doesn't replace it.
+  const ringSVG=(pct)=>{
+    const clamped=Math.max(0,Math.min(100,Math.round(Math.abs(pct))));
+    const r=26, c=2*Math.PI*r, offset=c*(1-clamped/100);
+    return `<div class="kpi-ring"><svg class="kpi-ring-svg" viewBox="0 0 64 64">
+      <circle class="kpi-ring-bg" cx="32" cy="32" r="${r}"></circle>
+      <circle class="kpi-ring-fg" cx="32" cy="32" r="${r}" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"></circle>
+    </svg><div class="kpi-ring-label">${clamped}%</div></div>`;
+  };
+  const totalEngineers=state.users.filter(u=>u.role==='engineer').length;
+  const engActivePct=totalEngineers?Math.round((engCount/totalEngineers)*100):0;
+  // KPIs — color-coded, with animated values, shortened totals, progress
+  // rings, and 30-day trend chips
   document.getElementById('kpi-cards').innerHTML=`
-    <div class="kpi-card" style="--kpi-accent:var(--chart1)"><div class="flex items-center justify-between"><div class="kpi-label">Track cost</div><div class="kpi-icon kpi-icon-primary"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div></div><div class="kpi-value" id="kv-track">₹0</div>${trendChip(trends.track)}</div>
-    <div class="kpi-card" style="--kpi-accent:var(--chart3)"><div class="flex items-center justify-between"><div class="kpi-label">Vehicle hire</div><div class="kpi-icon kpi-icon-blue"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div></div><div class="kpi-value" id="kv-vehicle">₹0</div>${trendChip(trends.vehicle)}</div>
-    <div class="kpi-card" style="--kpi-accent:var(--chart2)"><div class="flex items-center justify-between"><div class="kpi-label">Billed hours</div><div class="kpi-icon kpi-icon-green"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div><div class="kpi-value mono" id="kv-hours">0.0<span class="text-muted" style="font-size:0.8rem;margin-left:0.25rem">hr</span></div>${trendChip(trends.hours)}</div>
-    <div class="kpi-card" style="--kpi-accent:var(--chart4)"><div class="flex items-center justify-between"><div class="kpi-label">Active engineers</div><div class="kpi-icon kpi-icon-purple"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div><div class="kpi-value mono" id="kv-eng">${engCount}</div><span class="kpi-trend kpi-trend-flat">on roster today</span></div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart1)">
+      <div class="flex items-center justify-between"><div class="kpi-label">Track cost</div><div class="kpi-icon kpi-icon-primary"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div></div>
+      <div class="kpi-body">
+        <div class="kpi-body-left"><div class="kpi-value" id="kv-track">₹0</div><div class="kpi-value-short" id="kv-track-short"></div>${trendChip(trends.track)}</div>
+        ${ringSVG(trends.track)}
+      </div>
+    </div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart3)">
+      <div class="flex items-center justify-between"><div class="kpi-label">Vehicle hire</div><div class="kpi-icon kpi-icon-blue"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div></div>
+      <div class="kpi-body">
+        <div class="kpi-body-left"><div class="kpi-value" id="kv-vehicle">₹0</div><div class="kpi-value-short" id="kv-vehicle-short"></div>${trendChip(trends.vehicle)}</div>
+        ${ringSVG(trends.vehicle)}
+      </div>
+    </div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart2)">
+      <div class="flex items-center justify-between"><div class="kpi-label">Billed hours</div><div class="kpi-icon kpi-icon-green"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div></div>
+      <div class="kpi-body">
+        <div class="kpi-body-left"><div class="kpi-value mono" id="kv-hours">0.0<span class="text-muted" style="font-size:0.8rem;margin-left:0.25rem">hr</span></div>${trendChip(trends.hours)}</div>
+        ${ringSVG(trends.hours)}
+      </div>
+    </div>
+    <div class="kpi-card" style="--kpi-accent:var(--chart4)">
+      <div class="flex items-center justify-between"><div class="kpi-label">Active engineers</div><div class="kpi-icon kpi-icon-purple"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div></div>
+      <div class="kpi-body">
+        <div class="kpi-body-left"><div class="kpi-value mono" id="kv-eng">${engCount}</div><span class="kpi-trend kpi-trend-flat">of ${totalEngineers} on roster</span></div>
+        ${ringSVG(engActivePct)}
+      </div>
+    </div>
   `;
+  document.getElementById('kv-track-short').textContent=`≈ ${fmtINRShort(totals.track)}`;
+  document.getElementById('kv-vehicle-short').textContent=`≈ ${fmtINRShort(totals.vehicle)}`;
   animateKpiValues([
     {id:'kv-track', end:totals.track, fmt:v=>fmtINR(v)},
     {id:'kv-vehicle', end:totals.vehicle, fmt:v=>fmtINR(v)},
@@ -1747,7 +2026,7 @@ function renderDashboard() {
   const chartColors=['#e8a825','#4ade80','#60a5fa','#c084fc','#f87171','#fb923c'];
   if(chartTrack) chartTrack.destroy();
   const ctx1=document.getElementById('chart-track').getContext('2d');
-  chartTrack=new Chart(ctx1,{type:'bar',data:{labels:activeTracksForDash,datasets:[{data:byTrack.map(d=>d.sessions),backgroundColor:byTrack.map((d,i)=>d.sessions>0?chartColors[i%chartColors.length]:'#2a3147'),borderRadius:6}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw} sessions`}}},scales:{x:{ticks:{color:'#8892a4',font:{size:11}}},y:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#2e3650'}}},responsive:true,maintainAspectRatio:false}});
+  chartTrack=new Chart(ctx1,{type:'bar',data:{labels:activeTracksForDash,datasets:[{data:byTrack.map(d=>d.sessions),backgroundColor:byTrack.map((d,i)=>d.sessions>0?chartColors[i%chartColors.length]:'#2a3147'),borderRadius:6}]},options:{layout:{padding:{top:18}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw} sessions · ${fmtINR(byTrack[ctx.dataIndex].cost)}`}},barValueLabels:{values:byTrack.map(d=>d.sessions>0?fmtINRShort(d.cost):'')}},scales:{x:{ticks:{color:'#8892a4',font:{size:11}}},y:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#2e3650'}}},responsive:true,maintainAspectRatio:false},plugins:[barValueLabelsPlugin]});
   if(chartProject) chartProject.destroy();
   const canvas2=document.getElementById('chart-project');
   const placeholder=document.getElementById('chart-project-empty');
@@ -1755,7 +2034,8 @@ function renderDashboard() {
     canvas2.style.display='';
     if(placeholder) placeholder.style.display='none';
     const ctx2=canvas2.getContext('2d');
-    chartProject=new Chart(ctx2,{type:'doughnut',data:{labels:byProject.map(p=>p.project),datasets:[{data:byProject.map(p=>p.cost),backgroundColor:chartColors.slice(0,byProject.length),borderWidth:0}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtINR(ctx.raw)}`}}},responsive:true,maintainAspectRatio:false}});
+    const projectTotal=byProject.reduce((a,p)=>a+p.cost,0);
+    chartProject=new Chart(ctx2,{type:'doughnut',data:{labels:byProject.map(p=>p.project),datasets:[{data:byProject.map(p=>p.cost),backgroundColor:chartColors.slice(0,byProject.length),borderWidth:0}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11},generateLabels:(chart)=>chart.data.labels.map((label,i)=>({text:`${label}  ${fmtINRShort(byProject[i].cost)}`,fillStyle:chartColors[i%chartColors.length],strokeStyle:chartColors[i%chartColors.length],index:i}))}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtINR(ctx.raw)}`}},centerText:{title:'Total spend',value:fmtINRShort(projectTotal)}},responsive:true,maintainAspectRatio:false},plugins:[centerTextPlugin]});
   } else {
     canvas2.style.display='none';
     if(placeholder) placeholder.style.display='';
@@ -1768,7 +2048,8 @@ function renderDashboard() {
     canvas3.style.display='';
     if(placeholder3) placeholder3.style.display='none';
     const ctx3=canvas3.getContext('2d');
-    chartCategory=new Chart(ctx3,{type:'doughnut',data:{labels:byCategory.map(c=>c.category),datasets:[{data:byCategory.map(c=>c.sessions),backgroundColor:byCategory.map(c=>c.color),borderWidth:0}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} sessions (${fmtINR(byCategory[ctx.dataIndex].cost)})`}}},responsive:true,maintainAspectRatio:false}});
+    const categoryTotalCost=byCategory.reduce((a,c)=>a+c.cost,0);
+    chartCategory=new Chart(ctx3,{type:'doughnut',data:{labels:byCategory.map(c=>c.category),datasets:[{data:byCategory.map(c=>c.sessions),backgroundColor:byCategory.map(c=>c.color),borderWidth:0}]},options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8892a4',font:{size:11},generateLabels:(chart)=>chart.data.labels.map((label,i)=>({text:`${label}  ${fmtINRShort(byCategory[i].cost)}`,fillStyle:byCategory[i].color,strokeStyle:byCategory[i].color,index:i}))}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} sessions (${fmtINR(byCategory[ctx.dataIndex].cost)})`}},centerText:{title:'Total spend',value:fmtINRShort(categoryTotalCost)}},responsive:true,maintainAspectRatio:false},plugins:[centerTextPlugin]});
   } else {
     canvas3.style.display='none';
     if(placeholder3) placeholder3.style.display='';
@@ -1788,7 +2069,7 @@ function renderDashboard() {
   }).join('');
   // Cache for PDF export so the report matches exactly what's on screen
   lastDashboardSnapshot={filtered, totals, byTrack, byProject, byCategory, engCount,
-    filters:{projectFilter,trFilter,wbsFilter,monthFilter,quarter}};
+    filters:{projectFilter,trFilter,wbsFilter,monthFilter,quarter,yearFilter}};
   // Recent
   document.getElementById('dash-total').textContent=`${filtered.length} total`;
   if(filtered.length===0){document.getElementById('dash-recent-table').innerHTML='<div class="empty-state">No completed sessions match these filters.</div>';return;}
@@ -1897,23 +2178,41 @@ function renderLogs() {
 }
 
 function autoClose(logId) {
-  let closedLog=null;
-  state.logs=state.logs.map(l=>{
-    if(l.id!==logId)return l;
-    const closed={...l,exitAt:l.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
-    closedLog={...closed,...computeBilling(closed)};
-    return closedLog;
-  });
+  const target=state.logs.find(l=>l.id===logId);
+  if(!target)return;
+  const closed={...target,exitAt:target.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
+  const billed={...closed,...computeBilling(closed)};
+  const {finalBatch,retroLogs}=recomputeCumulativeBilling([billed]);
+  const closedLog=finalBatch[0];
+  const retroById=Object.fromEntries(retroLogs.map(l=>[l.id,l]));
+  state.logs=state.logs.map(l=>l.id===logId?closedLog:(retroById[l.id]||l));
   saveState(); renderLogs(); updateSyncBadge();
-  if(closedLog) pushLog(closedLog);
+  pushLog(closedLog);
+  retroLogs.forEach(pushLog);
   toast('Auto-closed');
 }
 
 async function deleteLog(logId) {
   if(!confirm('Delete this log entry?'))return;
+  const target=state.logs.find(l=>l.id===logId);
   state.logs=state.logs.filter(l=>l.id!==logId);
+  // Deleting a log changes its RFID+Track+day group's cumulative
+  // duration — recompute the remaining group so its total (and which
+  // visit holds it) stays correct rather than leftover-stale.
+  let recomputed=[];
+  if (target && target.status!=='open') {
+    const key=trackDayKey(target);
+    const groupMates=key?state.logs.filter(l=>l.status!=='open'&&trackDayKey(l)===key):[];
+    if (groupMates.length) {
+      const {finalBatch,retroLogs}=recomputeCumulativeBilling(groupMates);
+      const finalById=Object.fromEntries(finalBatch.map(l=>[l.id,l]));
+      state.logs=state.logs.map(l=>finalById[l.id]||l);
+      recomputed=[...finalBatch,...retroLogs];
+    }
+  }
   saveState(); renderLogs(); updateSyncBadge();
   try { await db.collection('logs').doc(logId).delete(); } catch(e){ console.warn('deleteLog error', e); }
+  recomputed.forEach(pushLog);
   toast('Deleted');
 }
 
@@ -1933,6 +2232,8 @@ function openEditLog(logId) {
 
 function saveEditLog() {
   const logId=document.getElementById('edit-log-id').value;
+  const original=state.logs.find(l=>l.id===logId);
+  const oldKey=original?trackDayKey(original):null;
   const patch={
     track:document.getElementById('edit-track').value,
     entryAt:new Date(document.getElementById('edit-time-in').value).getTime(),
@@ -1941,15 +2242,38 @@ function saveEditLog() {
     meta:{project:document.getElementById('edit-project').value,wbs:document.getElementById('edit-wbs').value},
   };
   let editedLog=null;
+  let allRetro=[];
   state.logs=state.logs.map(l=>{
     if(l.id!==logId)return l;
     const merged={...l,...patch,meta:{...l.meta,...patch.meta},sync:'pending'};
-    if(merged.exitAt) Object.assign(merged,computeBilling(merged));
+    if(merged.exitAt) {
+      const billed={...merged,...computeBilling(merged)};
+      const {finalBatch,retroLogs}=recomputeCumulativeBilling([billed]);
+      editedLog=finalBatch[0];
+      allRetro=retroLogs;
+      return editedLog;
+    }
     editedLog=merged;
     return merged;
   });
+  // If this edit moved the log to a different track or a different
+  // calendar day, it just left its previous RFID+Track+day group — that
+  // group's cumulative total may now be smaller, so recompute it too
+  // rather than leaving the old group overcharged.
+  if (original && editedLog && oldKey && oldKey!==trackDayKey(editedLog)) {
+    const oldGroupMates=state.logs.filter(l=>l.id!==logId&&l.status!=='open'&&trackDayKey(l)===oldKey);
+    if (oldGroupMates.length) {
+      const {finalBatch:oldFinal,retroLogs:oldRetro}=recomputeCumulativeBilling(oldGroupMates);
+      const oldFinalById=Object.fromEntries(oldFinal.map(l=>[l.id,l]));
+      state.logs=state.logs.map(l=>oldFinalById[l.id]||l);
+      allRetro=[...allRetro,...oldFinal,...oldRetro];
+    }
+  }
+  const retroById=Object.fromEntries(allRetro.map(l=>[l.id,l]));
+  state.logs=state.logs.map(l=>retroById[l.id]||l);
   saveState(); closeModal('modal-edit-log'); renderLogs();
   if(editedLog) pushLog(editedLog);
+  allRetro.forEach(pushLog);
   toast('Log updated');
 }
 
@@ -2015,6 +2339,7 @@ function exportDashboardPDF() {
     if(f.projectFilter!=='all') bits.push(`Project: ${f.projectFilter}`);
     if(f.trFilter!=='all') bits.push(`TR: TR-${f.trFilter}`);
     if(f.wbsFilter!=='all') bits.push(`WBS: ${f.wbsFilter}`);
+    if(f.yearFilter&&f.yearFilter!=='all') bits.push(`Year: ${f.yearFilter}`);
     if(f.monthFilter!=='all') bits.push(monthNames[Number(f.monthFilter)]);
     if(f.quarter!=='all') bits.push(f.quarter.toUpperCase());
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.muted);
@@ -2156,7 +2481,7 @@ async function saveBilling() {
 // ──────────────────────────────────────────────────────
 function renderVehicles() {
   const wrap=document.getElementById('vehicles-table-wrap');
-  const DESC={'Hatchback Basic':'Entry-level cars','Hatchback Premium':'Compact premium','Compact SUV':'Small SUVs','Mid SUV / MUV':'Family SUVs','Large SUV':'Premium SUVs','EV':'Electric vehicles','Utility / LCV':'Pickup / load vehicles','Luxury':'BMW / Mercedes / Audi / JLR'};
+  const DESC={'Hatchback Basic':'Entry-level cars','Hatchback Premium':'Compact premium','Compact SUV':'Small SUVs','Mid SUV / MUV':'Family SUVs','Large SUV':'Premium SUVs','EV':'Electric vehicles','Utility / LCV':'Pickup / load vehicles','Luxury':'BMW / Mercedes / Audi / JLR','Economy 2W (≤125cc)':'Commuter bikes/scooters','Mainstream 2W (126-250cc)':'Mid-size motorcycles','Premium 2W (251-500cc)':'Premium motorcycles','Large Capacity 2W (501-800cc)':'Large capacity motorcycles','Superbikes (>800cc)':'High-performance superbikes','Electric 2W':'Electric scooters/bikes'};
   const classes=Object.keys(state.vehicleClassRates);
   wrap.innerHTML=`<table><thead><tr><th>Vehicle Class</th><th>Description</th><th class="text-right">Avg Rate (&#8377;/session)</th><th class="text-right">Actions</th></tr></thead><tbody>${classes.map(c=>`<tr><td class="font-semibold">${c}</td><td class="text-xs text-muted">${DESC[c]||''}</td><td class="text-right mono"><input type="number" class="mono" style="width:8rem;padding:0.25rem 0.5rem;text-align:right" value="${state.vehicleClassRates[c]}" onchange="updateVehicleClassRate('${c}',this.value)"></td><td class="text-right"><button class="btn btn-primary btn-sm" onclick="saveVehicleRates()">Save</button></td></tr>`).join('')}</tbody></table>`;
 }
@@ -2254,7 +2579,7 @@ async function resetCred(id, role) {
 function checkAutoClose() {
   const now=Date.now();
   const closedLogs=[];
-  state.logs=state.logs.map(l=>{
+  const newLogsArr=state.logs.map(l=>{
     if(l.status!=='open')return l;
     if(now-l.entryAt>=2*3600_000) {
       const closed={...l,exitAt:l.entryAt+2*3600_000,status:'auto-closed',sync:'pending'};
@@ -2265,8 +2590,13 @@ function checkAutoClose() {
     return l;
   });
   if(closedLogs.length){
+    const {finalBatch,retroLogs}=recomputeCumulativeBilling(closedLogs);
+    const finalById=Object.fromEntries(finalBatch.map(l=>[l.id,l]));
+    const retroById=Object.fromEntries(retroLogs.map(l=>[l.id,l]));
+    state.logs=newLogsArr.map(l=>finalById[l.id]||retroById[l.id]||l);
     saveState();renderPageContent(currentPage);updateSyncBadge();
-    closedLogs.forEach(pushLog);
+    finalBatch.forEach(pushLog);
+    retroLogs.forEach(pushLog);
     toast('Open sessions auto-closed after 2 hours');
   }
 }
@@ -2348,7 +2678,21 @@ function attachFirestoreListeners() {
       const cfg = snap.data();
       if (cfg.minHours) state.billing.minHours = cfg.minHours;
       if (cfg.rates) state.billing.rates = cfg.rates;
-      if (cfg.vehicleClassRates) state.vehicleClassRates = cfg.vehicleClassRates;
+      if (cfg.vehicleClassRates) {
+        // Merge rather than fully replace: an older Firestore config
+        // document won't have vehicle classes added in a later app update
+        // (e.g. the 2W categories). Defaults fill any gaps; anything the
+        // admin already customised in Firestore still takes priority.
+        const defaults = seedState().vehicleClassRates;
+        const merged = { ...defaults, ...cfg.vehicleClassRates };
+        state.vehicleClassRates = merged;
+        const missingKeys = Object.keys(defaults).filter(k => !(k in cfg.vehicleClassRates));
+        if (missingKeys.length) {
+          db.collection('config').doc('billing')
+            .set({ vehicleClassRates: merged, updatedAt: Date.now() }, { merge: true })
+            .catch(e => console.warn('Auto-heal vehicleClassRates failed', e));
+        }
+      }
       state.billing.configUpdatedAt = cfg.updatedAt || Date.now();
     } else {
       // First run on a brand-new Firebase project — seed it with the
